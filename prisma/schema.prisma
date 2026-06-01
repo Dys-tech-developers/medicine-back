@@ -1,0 +1,270 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Desarrollo sin servidor: SQLite (archivo en prisma/dev.db con DATABASE_URL=file:./dev.db).
+// Producción: cambiar a provider = "postgresql" y URL postgres; podés volver a añadir @db.VarChar / @db.Date según Prisma.
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Sexo {
+  M
+  F
+  X
+}
+
+model User {
+  id           Int       @id @default(autoincrement())
+  nombre       String
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  estado       Boolean   @default(true)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  roles        UserRole[]
+  prestador    Prestador?
+
+  @@map("users")
+}
+
+model Role {
+  id     Int        @id @default(autoincrement())
+  nombre String
+  users  UserRole[]
+
+  @@map("roles")
+}
+
+model UserRole {
+  userId Int @map("user_id")
+  rolId  Int @map("rol_id")
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role @relation(fields: [rolId], references: [id], onDelete: Cascade)
+
+  @@id([userId, rolId])
+  @@map("user_roles")
+}
+
+model Prestador {
+  id              Int      @id @default(autoincrement())
+  userId          Int      @unique @map("user_id")
+  telefono        String
+  lugarResidencia String   @map("lugar_residencia")
+  documento       String
+  matricula       String
+  cuit            String
+  cbu             String
+  regimenIva      String   @map("regimen_iva")
+  estado          Boolean  @default(true)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  servicios       PrestadorServicio[]
+  visitas         Visita[]
+
+  @@map("prestadores")
+}
+
+model ObraSocial {
+  id        Int       @id @default(autoincrement())
+  nombre    String
+  codigo    String
+  estado    Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at")
+  pacientes Paciente[]
+
+  @@map("obras_sociales")
+}
+
+model Servicio {
+  id               Int                  @id @default(autoincrement())
+  nombre           String
+  descripcion      String?
+  estado           Boolean              @default(true)
+  createdAt        DateTime             @default(now()) @map("created_at")
+  prestadores      PrestadorServicio[]
+  tarifas          ServicioTarifa[]
+  pacienteServicios PacienteServicio[]
+
+  @@map("servicios")
+}
+
+model ServicioTarifa {
+  id              Int      @id @default(autoincrement())
+  servicioId      Int      @map("servicio_id")
+  modalidadCobro  String   @map("modalidad_cobro")
+  tipoJornada     String   @map("tipo_jornada")
+  tipoDia         String   @map("tipo_dia")
+  valor           Decimal
+  createdAt       DateTime @default(now()) @map("created_at")
+  servicio        Servicio @relation(fields: [servicioId], references: [id], onDelete: Cascade)
+
+  @@index([servicioId])
+  @@map("servicio_tarifas")
+}
+
+model PrestadorServicio {
+  prestadorId Int @map("prestador_id")
+  servicioId  Int @map("servicio_id")
+  prestador   Prestador @relation(fields: [prestadorId], references: [id], onDelete: Cascade)
+  servicio    Servicio  @relation(fields: [servicioId], references: [id], onDelete: Cascade)
+
+  @@id([prestadorId, servicioId])
+  @@map("prestador_servicios")
+}
+
+model Paciente {
+  id              Int       @id @default(autoincrement())
+  obraSocialId    Int       @map("obra_social_id")
+  codigoQr        String    @unique @map("codigo_qr")
+  nombre          String
+  apellido        String
+  numeroDocumento String    @map("numero_documento")
+  fechaNacimiento DateTime  @map("fecha_nacimiento")
+  sexo            Sexo
+  telefono        String
+  direccion       String
+  numeroAfiliado  String    @map("numero_afiliado")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  obraSocial      ObraSocial @relation(fields: [obraSocialId], references: [id], onDelete: Restrict)
+  historiaClinica HistoriaClinica?
+  servicios       PacienteServicio[]
+
+  @@index([obraSocialId])
+  @@map("pacientes")
+}
+
+model HistoriaClinica {
+  id                   Int      @id @default(autoincrement())
+  pacienteId           Int      @unique @map("paciente_id")
+  fechaCreacion        DateTime @map("fecha_creacion")
+  antecedentes         String?
+  diagnosticoInicial   String?  @map("diagnostico_inicial")
+  medicacion           String?
+  alergias             String?
+  observaciones        String?
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+  paciente             Paciente @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  evoluciones          EvolucionClinica[]
+
+  @@map("historias_clinicas")
+}
+
+model EvolucionClinica {
+  id                Int             @id @default(autoincrement())
+  historiaClinicaId Int             @map("historia_clinica_id")
+  fecha             DateTime
+  observaciones     String?
+  medicacion        String?
+  createdAt         DateTime        @default(now()) @map("created_at")
+  historiaClinica   HistoriaClinica @relation(fields: [historiaClinicaId], references: [id], onDelete: Cascade)
+
+  @@index([historiaClinicaId])
+  @@map("evoluciones_clinicas")
+}
+
+model PacienteServicio {
+  id               Int       @id @default(autoincrement())
+  pacienteId       Int       @map("paciente_id")
+  servicioId       Int       @map("servicio_id")
+  fechaInicio      DateTime  @map("fecha_inicio")
+  fechaFin         DateTime? @map("fecha_fin")
+  periodoControl   String    @map("periodo_control")
+  cantidadPermitida Int      @map("cantidad_permitida")
+  cantidadHoras    Int?      @map("cantidad_horas")
+  modalidadCobro   String    @map("modalidad_cobro")
+  estado           String
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  paciente         Paciente  @relation(fields: [pacienteId], references: [id], onDelete: Restrict)
+  servicio         Servicio  @relation(fields: [servicioId], references: [id], onDelete: Restrict)
+  visitas          Visita[]
+
+  @@index([pacienteId])
+  @@index([servicioId])
+  @@map("paciente_servicios")
+}
+
+model Visita {
+  id                 Int        @id @default(autoincrement())
+  pacienteServicioId Int        @map("paciente_servicio_id")
+  prestadorId        Int        @map("prestador_id")
+  fechaInicio        DateTime   @map("fecha_inicio")
+  fechaFin           DateTime   @map("fecha_fin")
+  tiempoMinutos      Int        @map("tiempo_minutos")
+  observaciones      String?
+  createdAt          DateTime   @default(now()) @map("created_at")
+  updatedAt          DateTime   @updatedAt @map("updated_at")
+  pacienteServicio   PacienteServicio @relation(fields: [pacienteServicioId], references: [id], onDelete: Cascade)
+  prestador          Prestador  @relation(fields: [prestadorId], references: [id], onDelete: Restrict)
+  insumos            VisitaInsumo[]
+  finanzas           VisitaFinanzas?
+
+  @@index([pacienteServicioId])
+  @@index([prestadorId])
+  @@map("visitas")
+}
+
+model VisitaFinanzas {
+  id               Int       @id @default(autoincrement())
+  visitaId         Int       @unique @map("visita_id")
+  modalidadCobro   String    @map("modalidad_cobro")
+  tipoJornada      String    @map("tipo_jornada")
+  tipoDia          String    @map("tipo_dia")
+  valorUnitario    Decimal   @map("valor_unitario")
+  valorAplicado    Decimal   @map("valor_aplicado")
+  facturado        Boolean   @default(false)
+  pagado           Boolean   @default(false)
+  fechaFacturacion DateTime? @map("fecha_facturacion")
+  fechaPago        DateTime? @map("fecha_pago")
+  observaciones    String?
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  visita           Visita    @relation(fields: [visitaId], references: [id], onDelete: Cascade)
+
+  @@map("visita_finanzas")
+}
+
+model Insumo {
+  id                  Int            @id @default(autoincrement())
+  nombre              String
+  descripcion         String?
+  codigo              String         @unique
+  stockActual         Int            @default(0) @map("stock_actual")
+  stockMinimo         Int            @default(0) @map("stock_minimo")
+  unidadMedida        String         @map("unidad_medida")
+  requiereVencimiento Boolean        @default(false) @map("requiere_vencimiento")
+  fechaVencimiento    DateTime?      @map("fecha_vencimiento")
+  estado              Boolean        @default(true)
+  createdAt           DateTime       @default(now()) @map("created_at")
+  updatedAt           DateTime       @updatedAt @map("updated_at")
+  visitas             VisitaInsumo[]
+
+  @@map("insumos")
+}
+
+model VisitaInsumo {
+  id        Int      @id @default(autoincrement())
+  visitaId  Int      @map("visita_id")
+  insumoId  Int      @map("insumo_id")
+  cantidad  Int
+  createdAt DateTime @default(now()) @map("created_at")
+  visita    Visita   @relation(fields: [visitaId], references: [id], onDelete: Cascade)
+  insumo    Insumo   @relation(fields: [insumoId], references: [id], onDelete: Restrict)
+
+  @@index([visitaId])
+  @@index([insumoId])
+  @@map("visita_insumos")
+}
+
+model RevokedToken {
+  jti       String   @id
+  expiresAt DateTime @map("expires_at")
+  revokedAt DateTime @default(now()) @map("revoked_at")
+
+  @@index([expiresAt])
+  @@map("revoked_tokens")
+}
