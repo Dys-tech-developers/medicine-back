@@ -9,6 +9,7 @@ async function main(): Promise<void> {
     "Seed catálogo demo listo: usuarios, obras sociales, servicios con tarifas, prestadores, pacientes e insumos.",
   );
   console.log("Contraseña de prueba (todos los usuarios): MedicineTest1!");
+  console.log("Localidades PBA (opcional): npm run db:seed:localidades");
   console.log("Visitas de mayo (opcional): npm run db:seed:mayo-visitas");
 }
 

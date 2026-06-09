@@ -8,6 +8,8 @@ export const pacienteServicioDetailInclude = {
       apellido: true,
       numeroDocumento: true,
       codigoQr: true,
+      direccion: true,
+      localidad: true,
     },
   },
   servicio: {
@@ -15,6 +17,17 @@ export const pacienteServicioDetailInclude = {
       id: true,
       nombre: true,
       estado: true,
+    },
+  },
+  prestador: {
+    include: {
+      user: {
+        select: {
+          id: true,
+          nombre: true,
+          email: true,
+        },
+      },
     },
   },
 } satisfies Prisma.PacienteServicioInclude;

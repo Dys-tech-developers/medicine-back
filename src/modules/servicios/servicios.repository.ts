@@ -14,6 +14,7 @@ export interface CreateServicioTarifaData {
 export interface CreateServicioWithTarifasData {
   nombre: string;
   estado: boolean;
+  controlHorario: boolean;
   descripcion: string | null;
   tarifas: CreateServicioTarifaData[];
 }
@@ -50,6 +51,14 @@ export class ServiciosRepository {
     }
 
     return where;
+  }
+
+  async findAllActivosOrderedByNombre(): Promise<Pick<Servicio, "id" | "nombre">[]> {
+    return this.db.servicio.findMany({
+      where: { estado: true },
+      orderBy: { nombre: "asc" },
+      select: { id: true, nombre: true },
+    });
   }
 
   async findPaginated(
@@ -97,6 +106,7 @@ export class ServiciosRepository {
         data: {
           nombre: data.nombre,
           estado: data.estado,
+          controlHorario: data.controlHorario,
           descripcion: data.descripcion,
         },
       });

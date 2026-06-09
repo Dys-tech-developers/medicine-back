@@ -10,6 +10,8 @@ export interface ServicioPacienteAsignadoDto {
   apellido: string;
   numeroDocumento: string;
   codigoQr: string;
+  direccion: string;
+  localidad: string;
   modalidadCobro: ModalidadCobro;
   periodoControl: PeriodoControl;
   cantidadPermitida: number;
@@ -26,6 +28,7 @@ export interface ServicioDto {
   nombre: string;
   descripcion: string | null;
   estado: boolean;
+  controlHorario: boolean;
   createdAt: string;
 }
 

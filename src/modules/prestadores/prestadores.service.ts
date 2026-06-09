@@ -10,7 +10,11 @@ import {
   mapPrestadorToDto,
 } from "./prestadores.mapper.js";
 import type { PrestadoresRepository } from "./prestadores.repository.js";
-import type { CreatePrestadorInput, ListPrestadoresQuery } from "./prestadores.validation.js";
+import type {
+  CreatePrestadorInput,
+  ListPrestadoresQuery,
+  UpdatePrestadorServiciosInput,
+} from "./prestadores.validation.js";
 import { listPrestadoresIncluyeEstadoCuenta } from "./prestadores.validation.js";
 
 export class PrestadoresService {
@@ -21,7 +25,10 @@ export class PrestadoresService {
   ) {}
 
   async list(query: ListPrestadoresQuery): Promise<PaginatedPrestadoresDto> {
-    const result = await this.prestadoresRepository.findPaginated(query.page, query.pageSize);
+    const result = await this.prestadoresRepository.findPaginated(query.page, query.pageSize, {
+      servicioId: query.servicioId,
+      estado: query.estado,
+    });
 
     if (!listPrestadoresIncluyeEstadoCuenta(query)) {
       return mapPaginatedPrestadores(result);
@@ -50,6 +57,14 @@ export class PrestadoresService {
     );
   }
 
+  async getById(id: number): Promise<PrestadorListItemDto> {
+    const prestador = await this.prestadoresRepository.findById(id);
+    if (!prestador) {
+      throw AppError.notFound("Prestador no encontrado");
+    }
+    return mapPrestadorToDto(prestador);
+  }
+
   async getMe(userId: number): Promise<PrestadorListItemDto> {
     const prestador = await this.prestadoresRepository.findByUserId(userId);
     if (!prestador) {
@@ -72,6 +87,8 @@ export class PrestadoresService {
     }
 
     const passwordHash = await hashPassword(input.password);
+    await this.validateServicioIds(input.servicioIds);
+
     const prestador = await this.prestadoresRepository.createWithUser({
       nombre: input.nombre,
       email,
@@ -84,8 +101,44 @@ export class PrestadoresService {
       cbu: input.cbu,
       regimenIva: input.regimenIva,
       estado: input.estado ?? true,
+      servicioIds: input.servicioIds,
     });
 
     return mapPrestadorToDto(prestador);
+  }
+
+  async updateServicios(
+    id: number,
+    input: UpdatePrestadorServiciosInput,
+  ): Promise<PrestadorListItemDto> {
+    const existing = await this.prestadoresRepository.findById(id);
+    if (!existing) {
+      throw AppError.notFound("Prestador no encontrado");
+    }
+
+    await this.validateServicioIds(input.servicioIds);
+
+    const prestador = await this.prestadoresRepository.syncServicios(id, input.servicioIds);
+    return mapPrestadorToDto(prestador);
+  }
+
+  private async validateServicioIds(servicioIds: number[]): Promise<void> {
+    if (servicioIds.length === 0) {
+      return;
+    }
+
+    const uniqueIds = [...new Set(servicioIds)];
+    const servicios = await this.prestadoresRepository.findServiciosByIds(uniqueIds);
+
+    if (servicios.length !== uniqueIds.length) {
+      const found = new Set(servicios.map((s) => s.id));
+      const missing = uniqueIds.filter((id) => !found.has(id));
+      throw AppError.notFound(`Servicios no encontrados: ${missing.join(", ")}`);
+    }
+
+    const inactivos = servicios.filter((s) => !s.estado).map((s) => s.nombre);
+    if (inactivos.length > 0) {
+      throw AppError.conflict(`Servicios inactivos: ${inactivos.join(", ")}`);
+    }
   }
 }

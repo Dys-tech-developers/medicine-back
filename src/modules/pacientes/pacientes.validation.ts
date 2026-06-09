@@ -32,6 +32,7 @@ export const createPacienteSchema = z.object({
   sexo: z.enum(["M", "F", "X"]),
   telefono: z.string().min(1).max(20),
   direccion: z.string().min(1).max(255),
+  localidad: z.string().min(1).max(100),
   numeroAfiliado: z.string().min(1).max(50),
 });
 
@@ -46,6 +47,7 @@ export const updatePacienteSchema = z.object({
   sexo: z.enum(["M", "F", "X"]).optional(),
   telefono: z.string().min(1).max(20).optional(),
   direccion: z.string().min(1).max(255).optional(),
+  localidad: z.string().min(1).max(100).optional(),
   numeroAfiliado: z.string().min(1).max(50).optional(),
 });
 

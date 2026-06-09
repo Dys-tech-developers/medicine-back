@@ -1,25 +1,34 @@
 import { AppError } from "../../core/errors/AppError.js";
+import { PACIENTE_SERVICIO_ESTADO } from "../../shared/constants/paciente-servicio-estado.js";
 import { ROLE } from "../../shared/constants/roles.js";
 import type { ModalidadCobro } from "../../shared/constants/modalidad-cobro.js";
 import { buildFinanzasPatch } from "../../shared/visita/buildFinanzasPatch.js";
+import { VISITA_ESTADO } from "../../shared/constants/visita-estado.js";
 import {
+  calcularTiempoMinutosEntre,
   calcularValorAplicado,
   resolveFechaFin,
   resolveTipoDia,
   resolveTipoJornada,
 } from "../../shared/visita/visitaTarifa.js";
-import type { VisitasRepository } from "./visitas.repository.js";
+import { assertCupoDisponibleParaVisita } from "../../shared/paciente-servicio/assertCupoDisponible.js";
+import { assertFechaDentroVigenciaAsignacion } from "../../shared/paciente-servicio/assertFechaDentroVigencia.js";
+import type { PacienteServicioForVisita, VisitasRepository } from "./visitas.repository.js";
 import type {
   BulkUpdateVisitaFinanzasInput,
   CreateVisitaInput,
+  FinalizarVisitaInput,
+  IniciarVisitaInput,
   ListVisitasQuery,
   UpdateVisitaFinanzasInput,
   UpdateVisitaInput,
+  VisitaPendienteQuery,
 } from "./visitas.validation.js";
 import type {
   BulkUpdateVisitaFinanzasResultDto,
   PaginatedVisitasDto,
   VisitaDto,
+  VisitaPendienteDto,
 } from "./visitas.dto.js";
 import { mapPaginatedVisitas, mapVisitaToDto } from "./visitas.mapper.js";
 
@@ -51,10 +60,135 @@ export class VisitasService {
     return mapVisitaToDto(visita);
   }
 
+  async getPendiente(auth: AuthContext, query: VisitaPendienteQuery): Promise<VisitaPendienteDto> {
+    const prestadorId = await this.resolvePrestadorIdForCreate(auth, undefined);
+    const visita = await this.visitasRepository.findVisitaIniciada(
+      query.pacienteServicioId,
+      prestadorId,
+    );
+
+    if (!visita) {
+      return { tieneVisitaPendiente: false, visita: null };
+    }
+
+    return {
+      tieneVisitaPendiente: true,
+      visita: {
+        id: visita.id,
+        fechaInicio: visita.fechaInicio.toISOString(),
+        estado: VISITA_ESTADO.INICIADA,
+      },
+    };
+  }
+
+  async iniciar(auth: AuthContext, input: IniciarVisitaInput): Promise<VisitaDto> {
+    const prestadorId = await this.resolvePrestadorIdForCreate(auth, undefined);
+    const pacienteServicio = await this.getPacienteServicioForVisita(input.pacienteServicioId);
+    this.ensureServicioConControlHorario(pacienteServicio.servicio.controlHorario);
+    this.ensurePacienteServicioActiva(pacienteServicio.estado);
+    await this.validatePrestador(prestadorId);
+    await this.ensurePrestadorPuedeIniciarVisita(pacienteServicio, prestadorId);
+
+    const fechaInicio = new Date();
+    this.ensureFechaDentroVigenciaAsignacion(pacienteServicio, fechaInicio);
+    await this.ensureCupoDisponible(pacienteServicio, fechaInicio);
+
+    const visitaIniciada = await this.visitasRepository.findVisitaIniciada(
+      input.pacienteServicioId,
+      prestadorId,
+    );
+    if (visitaIniciada) {
+      throw AppError.conflict(
+        "Ya tenés una visita iniciada para esta asignación; finalizala antes de iniciar otra",
+      );
+    }
+
+    const visita = await this.visitasRepository.create({
+      pacienteServicioId: input.pacienteServicioId,
+      prestadorId,
+      estado: VISITA_ESTADO.INICIADA,
+      fechaInicio,
+      fechaFin: null,
+      tiempoMinutos: null,
+      observaciones: null,
+    });
+
+    return mapVisitaToDto(visita);
+  }
+
+  async finalizar(
+    auth: AuthContext,
+    id: number,
+    input: FinalizarVisitaInput,
+  ): Promise<VisitaDto> {
+    const existing = await this.visitasRepository.findById(id);
+    if (!existing) {
+      throw AppError.notFound("Visita no encontrada");
+    }
+
+    await this.ensureCanAccessVisita(auth, existing.prestadorId);
+
+    if (existing.estado !== VISITA_ESTADO.INICIADA) {
+      throw AppError.conflict("Solo se pueden finalizar visitas en estado iniciada");
+    }
+
+    if (!existing.pacienteServicio.servicio.controlHorario) {
+      throw AppError.conflict("Este servicio no utiliza control horario por doble escaneo");
+    }
+
+    const fechaFin = new Date();
+    if (fechaFin <= existing.fechaInicio) {
+      throw AppError.badRequest("fechaFin debe ser posterior a fechaInicio");
+    }
+
+    const tiempoMinutos = calcularTiempoMinutosEntre(existing.fechaInicio, fechaFin);
+    const pacienteServicio = await this.getPacienteServicioForVisita(existing.pacienteServicioId);
+    const finanzas = await this.buildFinanzasForCreate(
+      pacienteServicio,
+      existing.fechaInicio,
+      tiempoMinutos,
+    );
+
+    const observaciones =
+      input.observaciones !== undefined ? input.observaciones : existing.observaciones;
+
+    const visita = await this.visitasRepository.finalizar(id, {
+      fechaFin,
+      tiempoMinutos,
+      observaciones,
+      finanzas,
+    });
+
+    return mapVisitaToDto(visita);
+  }
+
+  async cancelar(auth: AuthContext, id: number): Promise<VisitaDto> {
+    if (!auth.roles.includes(ROLE.ADMIN)) {
+      throw AppError.forbidden("Solo un administrador puede cancelar visitas");
+    }
+
+    const existing = await this.visitasRepository.findById(id);
+    if (!existing) {
+      throw AppError.notFound("Visita no encontrada");
+    }
+
+    if (existing.estado !== VISITA_ESTADO.INICIADA) {
+      throw AppError.conflict("Solo se pueden cancelar visitas en estado iniciada");
+    }
+
+    const visita = await this.visitasRepository.cancelar(id);
+    return mapVisitaToDto(visita);
+  }
+
   async create(auth: AuthContext, input: CreateVisitaInput): Promise<VisitaDto> {
     const prestadorId = await this.resolvePrestadorIdForCreate(auth, input.prestadorId);
-    const pacienteServicio = await this.getPacienteServicioForCreate(input.pacienteServicioId);
+    const pacienteServicio = await this.getPacienteServicioForVisita(input.pacienteServicioId);
+    this.ensureServicioSinControlHorario(pacienteServicio.servicio.controlHorario);
+    this.ensurePacienteServicioActiva(pacienteServicio.estado);
     await this.validatePrestador(prestadorId);
+    await this.ensurePrestadorPuedeIniciarVisita(pacienteServicio, prestadorId);
+    this.ensureFechaDentroVigenciaAsignacion(pacienteServicio, input.fechaInicio);
+    await this.ensureCupoDisponible(pacienteServicio, input.fechaInicio);
 
     const fechaFin = resolveFechaFin(input.fechaInicio, input.tiempoMinutos, input.fechaFin);
     const finanzas = await this.buildFinanzasForCreate(
@@ -66,6 +200,7 @@ export class VisitasService {
     const visita = await this.visitasRepository.create({
       pacienteServicioId: input.pacienteServicioId,
       prestadorId,
+      estado: VISITA_ESTADO.FINALIZADA,
       fechaInicio: input.fechaInicio,
       fechaFin,
       tiempoMinutos: input.tiempoMinutos,
@@ -94,16 +229,30 @@ export class VisitasService {
       }
     }
 
-    if (input.pacienteServicioId !== undefined) {
-      await this.validatePacienteServicio(input.pacienteServicioId);
-    }
-
     if (input.prestadorId !== undefined) {
       await this.validatePrestador(input.prestadorId);
     }
 
+    if (input.pacienteServicioId !== undefined || input.prestadorId !== undefined) {
+      const pacienteServicioId = input.pacienteServicioId ?? existing.pacienteServicioId;
+      const prestadorId = input.prestadorId ?? existing.prestadorId;
+      const pacienteServicio = await this.getPacienteServicioForVisita(pacienteServicioId);
+      this.ensurePacienteServicioActiva(pacienteServicio.estado);
+      await this.ensurePrestadorPuedeIniciarVisita(pacienteServicio, prestadorId);
+    }
+
+    if (existing.estado === VISITA_ESTADO.INICIADA) {
+      throw AppError.conflict(
+        "No se puede editar una visita iniciada; finalizala o pedí que un administrador la cancele",
+      );
+    }
+
+    if (existing.estado === VISITA_ESTADO.CANCELADA) {
+      throw AppError.conflict("No se puede editar una visita cancelada");
+    }
+
     const fechaInicio = input.fechaInicio ?? existing.fechaInicio;
-    const tiempoMinutos = input.tiempoMinutos ?? existing.tiempoMinutos;
+    const tiempoMinutos = input.tiempoMinutos ?? existing.tiempoMinutos ?? 1;
     const fechaFin =
       input.fechaFin ??
       (input.fechaInicio !== undefined || input.tiempoMinutos !== undefined
@@ -112,6 +261,14 @@ export class VisitasService {
 
     if (fechaFin !== undefined && fechaFin <= fechaInicio) {
       throw AppError.badRequest("fechaFin debe ser posterior a fechaInicio");
+    }
+
+    if (input.pacienteServicioId !== undefined || input.fechaInicio !== undefined) {
+      const pacienteServicioId = input.pacienteServicioId ?? existing.pacienteServicioId;
+      const pacienteServicio = await this.getPacienteServicioForVisita(pacienteServicioId);
+      this.ensurePacienteServicioActiva(pacienteServicio.estado);
+      this.ensureFechaDentroVigenciaAsignacion(pacienteServicio, fechaInicio);
+      await this.ensureCupoDisponible(pacienteServicio, fechaInicio, id);
     }
 
     const visita = await this.visitasRepository.update(id, {
@@ -179,6 +336,12 @@ export class VisitasService {
       throw AppError.notFound("Visita no encontrada");
     }
 
+    if (existing.estado === VISITA_ESTADO.INICIADA) {
+      throw AppError.conflict(
+        "No se puede eliminar una visita iniciada; finalizala o cancelala (solo administrador)",
+      );
+    }
+
     const isAdmin = auth.roles.includes(ROLE.ADMIN);
     if (!isAdmin) {
       const ownPrestadorId = await this.getPrestadorIdForUser(auth.userId);
@@ -223,12 +386,28 @@ export class VisitasService {
     };
   }
 
-  private async getPacienteServicioForCreate(pacienteServicioId: number) {
+  private async getPacienteServicioForVisita(pacienteServicioId: number) {
     const row = await this.visitasRepository.findPacienteServicioForVisita(pacienteServicioId);
     if (!row) {
       throw AppError.notFound("Asignación paciente-servicio no encontrada");
     }
     return row;
+  }
+
+  private ensurePacienteServicioActiva(estado: string): void {
+    if (estado === PACIENTE_SERVICIO_ESTADO.ACTIVA) {
+      return;
+    }
+
+    if (estado === PACIENTE_SERVICIO_ESTADO.SUSPENDIDA) {
+      throw AppError.conflict("La asignación paciente-servicio está suspendida");
+    }
+
+    if (estado === PACIENTE_SERVICIO_ESTADO.FINALIZADA) {
+      throw AppError.conflict("La asignación paciente-servicio está finalizada");
+    }
+
+    throw AppError.conflict("La asignación paciente-servicio no está activa");
   }
 
   private async buildListFilters(
@@ -308,13 +487,6 @@ export class VisitasService {
     }
   }
 
-  private async validatePacienteServicio(pacienteServicioId: number): Promise<void> {
-    const row = await this.visitasRepository.findPacienteServicioById(pacienteServicioId);
-    if (!row) {
-      throw AppError.notFound("Asignación paciente-servicio no encontrada");
-    }
-  }
-
   private async validatePrestador(prestadorId: number): Promise<void> {
     const prestador = await this.visitasRepository.findPrestadorById(prestadorId);
     if (!prestador) {
@@ -322,6 +494,77 @@ export class VisitasService {
     }
     if (!prestador.estado) {
       throw AppError.conflict("El prestador está inactivo");
+    }
+  }
+
+  private ensureFechaDentroVigenciaAsignacion(
+    pacienteServicio: Pick<PacienteServicioForVisita, "fechaInicio" | "fechaFin">,
+    fechaVisita: Date,
+  ): void {
+    assertFechaDentroVigenciaAsignacion(
+      fechaVisita,
+      pacienteServicio.fechaInicio,
+      pacienteServicio.fechaFin,
+    );
+  }
+
+  private async ensureCupoDisponible(
+    pacienteServicio: Pick<
+      PacienteServicioForVisita,
+      "id" | "periodoControl" | "cantidadPermitida" | "modalidadCobro"
+    >,
+    fechaReferencia: Date,
+    excludeVisitaId?: number,
+  ): Promise<void> {
+    await assertCupoDisponibleParaVisita({
+      pacienteServicioId: pacienteServicio.id,
+      periodoControl: pacienteServicio.periodoControl,
+      cantidadPermitida: pacienteServicio.cantidadPermitida,
+      modalidadCobro: pacienteServicio.modalidadCobro,
+      fechaReferencia,
+      countVisitasEnVentana: (psId, desde, hasta, excludeId) =>
+        this.visitasRepository.countVisitasEnVentana(psId, desde, hasta, excludeId),
+      excludeVisitaId,
+    });
+  }
+
+  private ensureServicioConControlHorario(controlHorario: boolean): void {
+    if (!controlHorario) {
+      throw AppError.conflict(
+        "Este servicio no tiene control horario; registrá la visita con POST /visitas",
+      );
+    }
+  }
+
+  private ensureServicioSinControlHorario(controlHorario: boolean): void {
+    if (controlHorario) {
+      throw AppError.conflict(
+        "Este servicio tiene control horario; usá POST /visitas/iniciar y POST /visitas/:id/finalizar",
+      );
+    }
+  }
+
+  private async ensurePrestadorPuedeIniciarVisita(
+    pacienteServicio: { prestadorId: number | null; servicioId: number },
+    prestadorId: number,
+  ): Promise<void> {
+    if (pacienteServicio.prestadorId != null) {
+      if (pacienteServicio.prestadorId !== prestadorId) {
+        throw AppError.forbidden(
+          "No podés iniciar una visita: no sos el prestador asignado a esta asignación paciente-servicio",
+        );
+      }
+      return;
+    }
+
+    const tieneServicio = await this.visitasRepository.prestadorTieneServicio(
+      prestadorId,
+      pacienteServicio.servicioId,
+    );
+    if (!tieneServicio) {
+      throw AppError.forbidden(
+        "No podés iniciar una visita: no tenés habilitado el servicio de esta asignación",
+      );
     }
   }
 }

@@ -65,4 +65,40 @@ export class UserRepository {
       include: userWithRolesInclude,
     });
   }
+
+  async findPasswordHashById(id: number): Promise<string | null> {
+    const row = await this.db.user.findUnique({
+      where: { id },
+      select: { passwordHash: true },
+    });
+    return row?.passwordHash ?? null;
+  }
+
+  async findByEmail(email: string): Promise<{ id: number } | null> {
+    return this.db.user.findUnique({
+      where: { email: email.toLowerCase() },
+      select: { id: true },
+    });
+  }
+
+  async updateProfile(
+    id: number,
+    data: { nombre?: string; email?: string },
+  ): Promise<UserWithRoles> {
+    return this.db.user.update({
+      where: { id },
+      data: {
+        ...(data.nombre !== undefined ? { nombre: data.nombre } : {}),
+        ...(data.email !== undefined ? { email: data.email.toLowerCase() } : {}),
+      },
+      include: userWithRolesInclude,
+    });
+  }
+
+  async updatePasswordHash(id: number, passwordHash: string): Promise<void> {
+    await this.db.user.update({
+      where: { id },
+      data: { passwordHash },
+    });
+  }
 }

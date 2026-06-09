@@ -19,6 +19,7 @@ export function mapServicioToDto(servicio: Servicio): ServicioDto {
     nombre: servicio.nombre,
     descripcion: servicio.descripcion,
     estado: servicio.estado,
+    controlHorario: servicio.controlHorario,
     createdAt: servicio.createdAt.toISOString(),
   };
 }
@@ -34,6 +35,8 @@ function mapPacienteAsignado(
     apellido: row.paciente.apellido,
     numeroDocumento: row.paciente.numeroDocumento,
     codigoQr: row.paciente.codigoQr,
+    direccion: row.paciente.direccion,
+    localidad: row.paciente.localidad,
     modalidadCobro: row.modalidadCobro as ModalidadCobro,
     periodoControl: row.periodoControl as PeriodoControl,
     cantidadPermitida: row.cantidadPermitida,

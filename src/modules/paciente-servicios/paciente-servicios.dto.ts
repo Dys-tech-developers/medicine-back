@@ -8,6 +8,8 @@ export interface PacienteServicioPacienteResumenDto {
   apellido: string;
   numeroDocumento: string;
   codigoQr: string;
+  direccion: string;
+  localidad: string;
 }
 
 export interface PacienteServicioServicioResumenDto {
@@ -16,12 +18,19 @@ export interface PacienteServicioServicioResumenDto {
   estado: boolean;
 }
 
+export interface PacienteServicioPrestadorResumenDto {
+  id: number;
+  nombre: string;
+  email: string;
+}
+
 export type { PacienteServicioDisponibilidadDto } from "../../shared/paciente-servicio/asDisponibilidadDto.js";
 
 export interface PacienteServicioDto {
   id: number;
   pacienteId: number;
   servicioId: number;
+  prestadorId: number | null;
   fechaInicio: string;
   fechaFin: string | null;
   periodoControl: PeriodoControl;
@@ -33,6 +42,7 @@ export interface PacienteServicioDto {
   updatedAt: string;
   paciente: PacienteServicioPacienteResumenDto;
   servicio: PacienteServicioServicioResumenDto;
+  prestador: PacienteServicioPrestadorResumenDto | null;
 }
 
 export interface PaginatedPacienteServiciosDto {

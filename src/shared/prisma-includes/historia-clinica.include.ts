@@ -8,6 +8,8 @@ export const historiaClinicaWithPacienteInclude = {
       apellido: true,
       numeroDocumento: true,
       codigoQr: true,
+      direccion: true,
+      localidad: true,
     },
   },
 } satisfies Prisma.HistoriaClinicaInclude;

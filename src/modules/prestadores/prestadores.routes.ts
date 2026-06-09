@@ -28,11 +28,20 @@ prestadoresRouter.get(
   prestadoresController.me,
 );
 
+const readRoles = [ROLE.ADMIN, ROLE.OPERADOR] as const;
+
 prestadoresRouter.get(
   "/",
   authenticate,
-  authorizeRoles(ROLE.ADMIN),
+  authorizeRoles(...readRoles),
   prestadoresController.list,
+);
+
+prestadoresRouter.get(
+  "/:id",
+  authenticate,
+  authorizeRoles(...readRoles),
+  prestadoresController.getById,
 );
 
 prestadoresRouter.post(
@@ -40,4 +49,11 @@ prestadoresRouter.post(
   authenticate,
   authorizeRoles(ROLE.ADMIN),
   prestadoresController.create,
+);
+
+prestadoresRouter.put(
+  "/:id/servicios",
+  authenticate,
+  authorizeRoles(ROLE.ADMIN),
+  prestadoresController.updateServicios,
 );

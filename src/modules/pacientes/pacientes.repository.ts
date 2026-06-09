@@ -19,6 +19,7 @@ export interface CreatePacienteData {
   sexo: "M" | "F" | "X";
   telefono: string;
   direccion: string;
+  localidad: string;
   numeroAfiliado: string;
 }
 
@@ -102,21 +103,41 @@ export class PacientesRepository {
 
   async createWithCodigoQr(data: CreatePacienteData): Promise<PacienteDetailRow> {
     return this.db.$transaction(async (tx) => {
-      const codigoQr = await this.generateNextCodigoQr(tx);
+      const sequence = await this.resolveMaxCodigoQrSequence(tx);
 
       return tx.paciente.create({
         data: {
           ...data,
-          codigoQr,
+          codigoQr: formatPacienteCodigoQr(sequence + 1),
         },
         include: pacienteDetailInclude,
       });
     });
   }
 
-  private async generateNextCodigoQr(
-    db: Pick<PrismaClient, "paciente">,
-  ): Promise<string> {
+  async createManyWithCodigoQr(items: CreatePacienteData[]): Promise<number> {
+    if (items.length === 0) {
+      return 0;
+    }
+
+    await this.db.$transaction(async (tx) => {
+      let sequence = await this.resolveMaxCodigoQrSequence(tx);
+
+      for (const data of items) {
+        sequence += 1;
+        await tx.paciente.create({
+          data: {
+            ...data,
+            codigoQr: formatPacienteCodigoQr(sequence),
+          },
+        });
+      }
+    });
+
+    return items.length;
+  }
+
+  private async resolveMaxCodigoQrSequence(db: Pick<PrismaClient, "paciente">): Promise<number> {
     const pacientes = await db.paciente.findMany({
       select: { codigoQr: true },
     });
@@ -129,6 +150,6 @@ export class PacientesRepository {
       }
     }
 
-    return formatPacienteCodigoQr(maxSequence + 1);
+    return maxSequence;
   }
 }

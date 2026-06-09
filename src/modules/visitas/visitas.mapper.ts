@@ -9,6 +9,7 @@ import type { VisitaDetail } from "../../shared/prisma-includes/visita.include.j
 import type { VisitaFinanzas } from "@prisma/client";
 import type { ModalidadCobro } from "../../shared/constants/modalidad-cobro.js";
 import type { TipoDia, TipoJornada } from "../../shared/constants/tarifa.js";
+import type { VisitaEstado } from "../../shared/constants/visita-estado.js";
 
 function mapInsumosResumen(visita: VisitaDetail): VisitaInsumoResumenDto[] {
   return visita.insumos.map((row) => ({
@@ -44,8 +45,9 @@ export function mapVisitaToDto(visita: VisitaDetail): VisitaDto {
     id: visita.id,
     pacienteServicioId: visita.pacienteServicioId,
     prestadorId: visita.prestadorId,
+    estado: visita.estado as VisitaEstado,
     fechaInicio: visita.fechaInicio.toISOString(),
-    fechaFin: visita.fechaFin.toISOString(),
+    fechaFin: visita.fechaFin?.toISOString() ?? null,
     tiempoMinutos: visita.tiempoMinutos,
     observaciones: visita.observaciones,
     createdAt: visita.createdAt.toISOString(),

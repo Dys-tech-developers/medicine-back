@@ -51,6 +51,13 @@ export class ObrasSocialesRepository {
     return this.db.obraSocial.findFirst({ where: { codigo } });
   }
 
+  async findAllActivasOrderedByNombre(): Promise<ObraSocial[]> {
+    return this.db.obraSocial.findMany({
+      where: { estado: true },
+      orderBy: { nombre: "asc" },
+    });
+  }
+
   async countPacientes(obraSocialId: number): Promise<number> {
     return this.db.paciente.count({ where: { obraSocialId } });
   }

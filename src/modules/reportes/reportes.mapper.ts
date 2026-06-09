@@ -80,6 +80,10 @@ function mapVisitaRow(visita: VisitaDetail): ReporteVisitaItemDto {
     throw new Error(`Visita ${visita.id} sin finanzas en reporte`);
   }
 
+  if (visita.tiempoMinutos === null) {
+    throw new Error(`Visita ${visita.id} sin duración en reporte`);
+  }
+
   const { finanzas } = visita;
 
   return {

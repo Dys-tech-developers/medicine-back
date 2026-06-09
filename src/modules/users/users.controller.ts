@@ -7,6 +7,7 @@ import type { UserService } from "./users.service.js";
 import {
   listUsersQuerySchema,
   updateUserEstadoSchema,
+  updateUserProfileSchema,
   userIdParamSchema,
 } from "./users.validation.js";
 import type { PaginatedUsersDto } from "./users.dto.js";
@@ -37,6 +38,13 @@ export class UserController {
     const { id } = parseWithSchema(userIdParamSchema, req.params);
     const body = parseWithSchema(updateUserEstadoSchema, req.body);
     const user = await this.userService.updateEstado(id, body);
+    res.status(200).json({ success: true, data: user });
+  });
+
+  updateProfile = wrapAsync(async (req, res: Response<ApiSuccess<UserPublicDto>>) => {
+    const { id } = parseWithSchema(userIdParamSchema, req.params);
+    const body = parseWithSchema(updateUserProfileSchema, req.body);
+    const user = await this.userService.updateProfile(id, body);
     res.status(200).json({ success: true, data: user });
   });
 }

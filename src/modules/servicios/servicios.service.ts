@@ -43,6 +43,7 @@ export class ServiciosService {
     const result = await this.serviciosRepository.createWithTarifas({
       nombre,
       estado: input.estado,
+      controlHorario: input.controlHorario,
       descripcion: input.descripcion ?? null,
       tarifas: input.tarifas,
     });
@@ -77,6 +78,7 @@ export class ServiciosService {
     const servicio = await this.serviciosRepository.update(id, {
       ...(input.nombre !== undefined ? { nombre: input.nombre.trim() } : {}),
       ...(input.descripcion !== undefined ? { descripcion: input.descripcion } : {}),
+      ...(input.controlHorario !== undefined ? { controlHorario: input.controlHorario } : {}),
     });
 
     return mapServicioToDto(servicio);

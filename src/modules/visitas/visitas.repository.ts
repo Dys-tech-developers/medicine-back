@@ -3,6 +3,7 @@ import {
   visitaDetailInclude,
   type VisitaDetail,
 } from "../../shared/prisma-includes/visita.include.js";
+import { VISITA_ESTADO, VISITA_ESTADOS_CUENTAN_CUPO } from "../../shared/constants/visita-estado.js";
 
 export interface PaginatedVisitas {
   items: VisitaDetail[];
@@ -29,7 +30,15 @@ export interface CreateVisitaFinanzasData {
 export interface CreateVisitaData {
   pacienteServicioId: number;
   prestadorId: number;
+  estado: string;
   fechaInicio: Date;
+  fechaFin: Date | null;
+  tiempoMinutos: number | null;
+  observaciones: string | null;
+  finanzas?: CreateVisitaFinanzasData | undefined;
+}
+
+export interface FinalizarVisitaData {
   fechaFin: Date;
   tiempoMinutos: number;
   observaciones: string | null;
@@ -40,7 +49,15 @@ export interface PacienteServicioForVisita {
   id: number;
   estado: string;
   servicioId: number;
+  prestadorId: number | null;
   modalidadCobro: string;
+  periodoControl: string;
+  cantidadPermitida: number;
+  fechaInicio: Date;
+  fechaFin: Date | null;
+  servicio: {
+    controlHorario: boolean;
+  };
 }
 
 export class VisitasRepository {
@@ -99,6 +116,47 @@ export class VisitasRepository {
     });
   }
 
+  async findVisitaIniciada(
+    pacienteServicioId: number,
+    prestadorId: number,
+  ): Promise<Pick<VisitaDetail, "id" | "fechaInicio" | "estado"> | null> {
+    return this.db.visita.findFirst({
+      where: {
+        pacienteServicioId,
+        prestadorId,
+        estado: VISITA_ESTADO.INICIADA,
+      },
+      select: {
+        id: true,
+        fechaInicio: true,
+        estado: true,
+      },
+    });
+  }
+
+  async findVisitasIniciadasByPacienteServicioIds(
+    pacienteServicioIds: number[],
+    prestadorId: number,
+  ): Promise<Array<{ id: number; pacienteServicioId: number; fechaInicio: Date; estado: string }>> {
+    if (pacienteServicioIds.length === 0) {
+      return [];
+    }
+
+    return this.db.visita.findMany({
+      where: {
+        pacienteServicioId: { in: pacienteServicioIds },
+        prestadorId,
+        estado: VISITA_ESTADO.INICIADA,
+      },
+      select: {
+        id: true,
+        pacienteServicioId: true,
+        fechaInicio: true,
+        estado: true,
+      },
+    });
+  }
+
   async findPrestadorByUserId(userId: number): Promise<{ id: number; estado: boolean } | null> {
     return this.db.prestador.findUnique({
       where: { userId },
@@ -120,7 +178,17 @@ export class VisitasRepository {
         id: true,
         estado: true,
         servicioId: true,
+        prestadorId: true,
         modalidadCobro: true,
+        periodoControl: true,
+        cantidadPermitida: true,
+        fechaInicio: true,
+        fechaFin: true,
+        servicio: {
+          select: {
+            controlHorario: true,
+          },
+        },
       },
     });
   }
@@ -149,25 +217,56 @@ export class VisitasRepository {
     });
   }
 
+  async countVisitasEnVentana(
+    pacienteServicioId: number,
+    desdeInclusive: Date,
+    hastaInclusive: Date,
+    excludeVisitaId?: number,
+  ): Promise<number> {
+    return this.db.visita.count({
+      where: {
+        pacienteServicioId,
+        estado: { in: VISITA_ESTADOS_CUENTAN_CUPO },
+        fechaInicio: { gte: desdeInclusive, lte: hastaInclusive },
+        ...(excludeVisitaId !== undefined ? { id: { not: excludeVisitaId } } : {}),
+      },
+    });
+  }
+
+  async prestadorTieneServicio(prestadorId: number, servicioId: number): Promise<boolean> {
+    const link = await this.db.prestadorServicio.findUnique({
+      where: {
+        prestadorId_servicioId: { prestadorId, servicioId },
+      },
+      select: { prestadorId: true },
+    });
+    return link !== null;
+  }
+
   async create(data: CreateVisitaData): Promise<VisitaDetail> {
     return this.db.$transaction(async (tx) => {
       const visita = await tx.visita.create({
         data: {
           pacienteServicioId: data.pacienteServicioId,
           prestadorId: data.prestadorId,
+          estado: data.estado,
           fechaInicio: data.fechaInicio,
           fechaFin: data.fechaFin,
           tiempoMinutos: data.tiempoMinutos,
           observaciones: data.observaciones,
-          finanzas: {
-            create: {
-              modalidadCobro: data.finanzas.modalidadCobro,
-              tipoJornada: data.finanzas.tipoJornada,
-              tipoDia: data.finanzas.tipoDia,
-              valorUnitario: data.finanzas.valorUnitario,
-              valorAplicado: data.finanzas.valorAplicado,
-            },
-          },
+          ...(data.finanzas
+            ? {
+                finanzas: {
+                  create: {
+                    modalidadCobro: data.finanzas.modalidadCobro,
+                    tipoJornada: data.finanzas.tipoJornada,
+                    tipoDia: data.finanzas.tipoDia,
+                    valorUnitario: data.finanzas.valorUnitario,
+                    valorAplicado: data.finanzas.valorAplicado,
+                  },
+                },
+              }
+            : {}),
         },
       });
 
@@ -181,6 +280,48 @@ export class VisitasRepository {
       }
 
       return detail;
+    });
+  }
+
+  async finalizar(id: number, data: FinalizarVisitaData): Promise<VisitaDetail> {
+    return this.db.$transaction(async (tx) => {
+      await tx.visita.update({
+        where: { id },
+        data: {
+          estado: VISITA_ESTADO.FINALIZADA,
+          fechaFin: data.fechaFin,
+          tiempoMinutos: data.tiempoMinutos,
+          ...(data.observaciones !== null ? { observaciones: data.observaciones } : {}),
+          finanzas: {
+            create: {
+              modalidadCobro: data.finanzas.modalidadCobro,
+              tipoJornada: data.finanzas.tipoJornada,
+              tipoDia: data.finanzas.tipoDia,
+              valorUnitario: data.finanzas.valorUnitario,
+              valorAplicado: data.finanzas.valorAplicado,
+            },
+          },
+        },
+      });
+
+      const detail = await tx.visita.findUnique({
+        where: { id },
+        include: visitaDetailInclude,
+      });
+
+      if (!detail) {
+        throw new Error("Visita finalizada pero no encontrada");
+      }
+
+      return detail;
+    });
+  }
+
+  async cancelar(id: number): Promise<VisitaDetail> {
+    return this.db.visita.update({
+      where: { id },
+      data: { estado: VISITA_ESTADO.CANCELADA },
+      include: visitaDetailInclude,
     });
   }
 

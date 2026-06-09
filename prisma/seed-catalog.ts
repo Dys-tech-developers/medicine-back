@@ -202,6 +202,7 @@ export async function seedPacientesConServicios(
         nombre: item.nombre,
         apellido: item.apellido,
         obraSocialId,
+        localidad: item.localidad,
       },
       create: {
         obraSocialId,
@@ -212,7 +213,8 @@ export async function seedPacientesConServicios(
         fechaNacimiento: new Date("1980-05-20"),
         sexo: item.sexo,
         telefono: "1144556677",
-        direccion: "CABA — demo seed",
+        direccion: "Av. Demo 1234",
+        localidad: item.localidad,
         numeroAfiliado: item.numeroAfiliado,
       },
     });
@@ -228,6 +230,16 @@ export async function seedPacientesConServicios(
       },
     });
 
+    const prestadorServicio = await prisma.prestadorServicio.findFirst({
+      where: { servicioId },
+      select: { prestadorId: true },
+      orderBy: { prestadorId: "asc" },
+    });
+
+    if (!prestadorServicio) {
+      continue;
+    }
+
     const existingPs = await prisma.pacienteServicio.findFirst({
       where: {
         pacienteId: paciente.id,
@@ -241,6 +253,7 @@ export async function seedPacientesConServicios(
         data: {
           pacienteId: paciente.id,
           servicioId,
+          prestadorId: prestadorServicio.prestadorId,
           fechaInicio: new Date("2026-01-01"),
           periodoControl: "mensual",
           cantidadPermitida: 12,

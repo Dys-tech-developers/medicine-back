@@ -10,6 +10,7 @@ export function mapPacienteServicioToDto(row: PacienteServicioDetail): PacienteS
     id: row.id,
     pacienteId: row.pacienteId,
     servicioId: row.servicioId,
+    prestadorId: row.prestadorId,
     fechaInicio: row.fechaInicio.toISOString(),
     fechaFin: row.fechaFin?.toISOString() ?? null,
     periodoControl: row.periodoControl as PeriodoControl,
@@ -21,6 +22,13 @@ export function mapPacienteServicioToDto(row: PacienteServicioDetail): PacienteS
     updatedAt: row.updatedAt.toISOString(),
     paciente: row.paciente,
     servicio: row.servicio,
+    prestador: row.prestador
+      ? {
+          id: row.prestador.id,
+          nombre: row.prestador.user.nombre,
+          email: row.prestador.user.email,
+        }
+      : null,
   };
 }
 

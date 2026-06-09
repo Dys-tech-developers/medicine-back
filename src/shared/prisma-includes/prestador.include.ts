@@ -9,6 +9,18 @@ export const prestadorWithUserInclude = {
       estado: true,
     },
   },
+  servicios: {
+    include: {
+      servicio: {
+        select: {
+          id: true,
+          nombre: true,
+          estado: true,
+        },
+      },
+    },
+    orderBy: { servicio: { nombre: "asc" as const } },
+  },
 } satisfies Prisma.PrestadorInclude;
 
 export type PrestadorWithUser = Prisma.PrestadorGetPayload<{

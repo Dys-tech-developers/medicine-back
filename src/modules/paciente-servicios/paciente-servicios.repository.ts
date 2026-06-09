@@ -21,6 +21,7 @@ export interface ListPacienteServiciosFilters {
 export interface CreatePacienteServicioData {
   pacienteId: number;
   servicioId: number;
+  prestadorId: number | null;
   fechaInicio: Date;
   fechaFin: Date | null;
   periodoControl: string;
@@ -33,6 +34,7 @@ export interface CreatePacienteServicioData {
 export interface UpdatePacienteServicioData {
   pacienteId?: number | undefined;
   servicioId?: number | undefined;
+  prestadorId?: number | null | undefined;
   fechaInicio?: Date | undefined;
   fechaFin?: Date | null | undefined;
   periodoControl?: string | undefined;
@@ -105,6 +107,23 @@ export class PacienteServiciosRepository {
     });
   }
 
+  async findPrestadorById(id: number): Promise<{ id: number; estado: boolean } | null> {
+    return this.db.prestador.findUnique({
+      where: { id },
+      select: { id: true, estado: true },
+    });
+  }
+
+  async prestadorTieneServicio(prestadorId: number, servicioId: number): Promise<boolean> {
+    const link = await this.db.prestadorServicio.findUnique({
+      where: {
+        prestadorId_servicioId: { prestadorId, servicioId },
+      },
+      select: { prestadorId: true },
+    });
+    return link !== null;
+  }
+
   async countVisitas(pacienteServicioId: number): Promise<number> {
     return this.db.visita.count({ where: { pacienteServicioId } });
   }
@@ -130,11 +149,13 @@ export class PacienteServiciosRepository {
     pacienteServicioId: number,
     desdeInclusive: Date,
     hastaInclusive: Date,
+    excludeVisitaId?: number,
   ): Promise<number> {
     return this.db.visita.count({
       where: {
         pacienteServicioId,
         fechaInicio: { gte: desdeInclusive, lte: hastaInclusive },
+        ...(excludeVisitaId !== undefined ? { id: { not: excludeVisitaId } } : {}),
       },
     });
   }
@@ -154,6 +175,12 @@ export class PacienteServiciosRepository {
     }
     if (data.servicioId !== undefined) {
       updateData.servicio = { connect: { id: data.servicioId } };
+    }
+    if (data.prestadorId !== undefined) {
+      updateData.prestador =
+        data.prestadorId === null
+          ? { disconnect: true }
+          : { connect: { id: data.prestadorId } };
     }
     if (data.fechaInicio !== undefined) {
       updateData.fechaInicio = data.fechaInicio;

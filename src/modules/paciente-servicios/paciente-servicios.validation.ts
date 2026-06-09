@@ -20,6 +20,7 @@ export const pacienteServicioIdParamSchema = z.object({
 const pacienteServicioBaseFields = {
   pacienteId: z.coerce.number().int().positive(),
   servicioId: z.coerce.number().int().positive(),
+  prestadorId: z.coerce.number().int().positive().optional().nullable(),
   fechaInicio: z.coerce.date(),
   fechaFin: z.coerce.date().optional().nullable(),
   periodoControl: z.enum(PERIODOS_CONTROL),
@@ -58,6 +59,7 @@ export const updatePacienteServicioSchema = z
   .object({
     pacienteId: z.coerce.number().int().positive().optional(),
     servicioId: z.coerce.number().int().positive().optional(),
+    prestadorId: z.coerce.number().int().positive().optional().nullable(),
     fechaInicio: z.coerce.date().optional(),
     fechaFin: z.coerce.date().optional().nullable(),
     periodoControl: z.enum(PERIODOS_CONTROL).optional(),

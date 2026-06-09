@@ -6,6 +6,8 @@ export interface HistoriaClinicaPacienteResumenDto {
   apellido: string;
   numeroDocumento: string;
   codigoQr: string;
+  direccion: string;
+  localidad: string;
 }
 
 export interface HistoriaClinicaListItemDto {

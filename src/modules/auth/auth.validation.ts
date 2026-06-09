@@ -16,3 +16,13 @@ export const loginSchema = z.object({
 
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1).max(200),
+  newPassword: z
+    .string()
+    .min(10)
+    .max(72, "La contraseña no puede superar los 72 caracteres (límite de bcrypt)"),
+});
+
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;

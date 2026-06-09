@@ -18,6 +18,20 @@ const writeRoles = [ROLE.ADMIN, ROLE.PRESTADOR] as const;
 
 visitasRouter.get("/", authenticate, authorizeRoles(...readRoles), visitasController.list);
 
+visitasRouter.get(
+  "/pendiente",
+  authenticate,
+  authorizeRoles(...writeRoles),
+  visitasController.getPendiente,
+);
+
+visitasRouter.post(
+  "/iniciar",
+  authenticate,
+  authorizeRoles(...writeRoles),
+  visitasController.iniciar,
+);
+
 visitasRouter.patch(
   "/finanzas/bulk",
   authenticate,
@@ -28,6 +42,20 @@ visitasRouter.patch(
 visitasRouter.get("/:id", authenticate, authorizeRoles(...readRoles), visitasController.getById);
 
 visitasRouter.post("/", authenticate, authorizeRoles(...writeRoles), visitasController.create);
+
+visitasRouter.post(
+  "/:id/finalizar",
+  authenticate,
+  authorizeRoles(...writeRoles),
+  visitasController.finalizar,
+);
+
+visitasRouter.patch(
+  "/:id/cancelar",
+  authenticate,
+  authorizeRoles(ROLE.ADMIN),
+  visitasController.cancelar,
+);
 
 visitasRouter.patch("/:id", authenticate, authorizeRoles(...writeRoles), visitasController.update);
 

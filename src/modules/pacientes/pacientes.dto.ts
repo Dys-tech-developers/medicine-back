@@ -16,6 +16,7 @@ export interface PacienteListItemDto {
   sexo: "M" | "F" | "X";
   telefono: string;
   direccion: string;
+  localidad: string;
   numeroAfiliado: string;
   createdAt: string;
 }
@@ -26,10 +27,17 @@ import type { ModalidadCobro } from "../../shared/constants/modalidad-cobro.js";
 import type { PeriodoControl } from "../../shared/constants/periodo-control.js";
 import type { PacienteServicioDisponibilidadDto } from "../../shared/paciente-servicio/asDisponibilidadDto.js";
 
+export interface VisitaPendienteEnAsignacionDto {
+  id: number;
+  fechaInicio: string;
+}
+
 export interface PacienteServicioAsignadoDto {
   pacienteServicioId: number;
   servicioId: number;
   servicioNombre: string;
+  controlHorario: boolean;
+  visitaPendiente?: VisitaPendienteEnAsignacionDto;
   modalidadCobro: ModalidadCobro;
   periodoControl: PeriodoControl;
   cantidadPermitida: number;

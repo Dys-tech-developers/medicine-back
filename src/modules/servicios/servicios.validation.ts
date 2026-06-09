@@ -23,6 +23,7 @@ export const createServicioSchema = z.object({
   nombre: z.string().trim().min(1).max(150),
   descripcion: z.string().trim().max(5000).optional().nullable(),
   estado: z.boolean().default(true),
+  controlHorario: z.boolean().default(false),
   tarifas: z
     .array(createServicioTarifaSchema)
     .min(1, "Debe incluir al menos una tarifa"),
@@ -33,6 +34,7 @@ export type CreateServicioInput = z.infer<typeof createServicioSchema>;
 export const updateServicioSchema = z.object({
   nombre: z.string().trim().min(1).max(150).optional(),
   descripcion: z.string().trim().max(5000).optional().nullable(),
+  controlHorario: z.boolean().optional(),
 });
 
 export type UpdateServicioInput = z.infer<typeof updateServicioSchema>;

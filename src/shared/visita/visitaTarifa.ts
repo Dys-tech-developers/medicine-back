@@ -46,3 +46,13 @@ export function resolveFechaFin(
 ): Date {
   return fechaFin ?? addMinutesToDate(fechaInicio, tiempoMinutos);
 }
+
+const MINUTOS_VISITA_MIN = 1;
+const MINUTOS_VISITA_MAX = 720;
+
+/** Duración en minutos entre inicio y fin (redondeo hacia arriba, acotado 1–720). */
+export function calcularTiempoMinutosEntre(fechaInicio: Date, fechaFin: Date): number {
+  const diffMs = fechaFin.getTime() - fechaInicio.getTime();
+  const minutes = Math.ceil(diffMs / 60_000);
+  return Math.min(Math.max(minutes, MINUTOS_VISITA_MIN), MINUTOS_VISITA_MAX);
+}

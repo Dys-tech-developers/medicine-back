@@ -1,11 +1,14 @@
 import type { ModalidadCobro } from "../../shared/constants/modalidad-cobro.js";
 import type { TipoDia, TipoJornada } from "../../shared/constants/tarifa.js";
+import type { VisitaEstado } from "../../shared/constants/visita-estado.js";
 
 export interface VisitaPacienteResumenDto {
   id: number;
   nombre: string;
   apellido: string;
   numeroDocumento: string;
+  direccion: string;
+  localidad: string;
 }
 
 export interface VisitaServicioResumenDto {
@@ -51,13 +54,25 @@ export interface VisitaFinanzasDto {
   updatedAt: string;
 }
 
+export interface VisitaPendienteResumenDto {
+  id: number;
+  fechaInicio: string;
+  estado: VisitaEstado;
+}
+
+export interface VisitaPendienteDto {
+  tieneVisitaPendiente: boolean;
+  visita: VisitaPendienteResumenDto | null;
+}
+
 export interface VisitaDto {
   id: number;
   pacienteServicioId: number;
   prestadorId: number;
+  estado: VisitaEstado;
   fechaInicio: string;
-  fechaFin: string;
-  tiempoMinutos: number;
+  fechaFin: string | null;
+  tiempoMinutos: number | null;
   observaciones: string | null;
   createdAt: string;
   updatedAt: string;

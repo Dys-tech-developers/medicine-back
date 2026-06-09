@@ -73,10 +73,14 @@ export class PacienteServiciosService {
   async create(input: CreatePacienteServicioInput): Promise<PacienteServicioDto> {
     await this.validatePaciente(input.pacienteId);
     await this.validateServicio(input.servicioId);
+    if (input.prestadorId != null) {
+      await this.validatePrestadorParaServicio(input.prestadorId, input.servicioId);
+    }
 
     const row = await this.repository.create({
       pacienteId: input.pacienteId,
       servicioId: input.servicioId,
+      prestadorId: input.prestadorId ?? null,
       fechaInicio: input.fechaInicio,
       fechaFin: input.fechaFin ?? null,
       periodoControl: input.periodoControl,
@@ -98,13 +102,28 @@ export class PacienteServiciosService {
     if (input.pacienteId !== undefined) {
       await this.validatePaciente(input.pacienteId);
     }
+
+    const servicioId = input.servicioId ?? existing.servicioId;
     if (input.servicioId !== undefined) {
       await this.validateServicio(input.servicioId);
     }
 
+    if (input.prestadorId != null) {
+      await this.validatePrestadorParaServicio(input.prestadorId, servicioId);
+    } else if (
+      input.prestadorId === undefined &&
+      input.servicioId !== undefined &&
+      existing.prestadorId != null
+    ) {
+      await this.validatePrestadorParaServicio(existing.prestadorId, servicioId);
+    }
+
+    await this.validateCupoTrasCambioReglas(existing, input);
+
     const row = await this.repository.update(id, {
       ...(input.pacienteId !== undefined ? { pacienteId: input.pacienteId } : {}),
       ...(input.servicioId !== undefined ? { servicioId: input.servicioId } : {}),
+      ...(input.prestadorId !== undefined ? { prestadorId: input.prestadorId } : {}),
       ...(input.fechaInicio !== undefined ? { fechaInicio: input.fechaInicio } : {}),
       ...(input.fechaFin !== undefined ? { fechaFin: input.fechaFin } : {}),
       ...(input.periodoControl !== undefined ? { periodoControl: input.periodoControl } : {}),
@@ -149,6 +168,58 @@ export class PacienteServiciosService {
     }
     if (!servicio.estado) {
       throw AppError.conflict("El servicio está inactivo");
+    }
+  }
+
+  private async validateCupoTrasCambioReglas(
+    existing: {
+      id: number;
+      periodoControl: string;
+      cantidadPermitida: number;
+      modalidadCobro: string;
+    },
+    input: UpdatePacienteServicioInput,
+  ): Promise<void> {
+    if (input.periodoControl === undefined && input.cantidadPermitida === undefined) {
+      return;
+    }
+
+    if (existing.modalidadCobro === "por_hora") {
+      return;
+    }
+
+    const periodoControl = input.periodoControl ?? existing.periodoControl;
+    const cantidadPermitida = input.cantidadPermitida ?? existing.cantidadPermitida;
+
+    if (!isPeriodoControl(periodoControl)) {
+      throw AppError.badRequest(`Valor de periodoControl no soportado: ${periodoControl}`);
+    }
+
+    const { inicio, fin } = obtenerVentanaTemporal(periodoControl, new Date());
+    const cantidadUtilizada = await this.repository.countVisitasEnVentana(existing.id, inicio, fin);
+
+    if (cantidadUtilizada > cantidadPermitida) {
+      throw AppError.conflict(
+        `Ya hay ${cantidadUtilizada} visitas en el período ${periodoControl} actual; cantidadPermitida no puede ser menor`,
+      );
+    }
+  }
+
+  private async validatePrestadorParaServicio(
+    prestadorId: number,
+    servicioId: number,
+  ): Promise<void> {
+    const prestador = await this.repository.findPrestadorById(prestadorId);
+    if (!prestador) {
+      throw AppError.notFound("Prestador no encontrado");
+    }
+    if (!prestador.estado) {
+      throw AppError.conflict("El prestador está inactivo");
+    }
+
+    const tieneServicio = await this.repository.prestadorTieneServicio(prestadorId, servicioId);
+    if (!tieneServicio) {
+      throw AppError.conflict("El prestador no tiene asociado el servicio indicado");
     }
   }
 }

@@ -20,12 +20,15 @@ export const visitaDetailInclude = {
           nombre: true,
           apellido: true,
           numeroDocumento: true,
+          direccion: true,
+          localidad: true,
         },
       },
       servicio: {
         select: {
           id: true,
           nombre: true,
+          controlHorario: true,
         },
       },
     },

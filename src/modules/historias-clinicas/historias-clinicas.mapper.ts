@@ -28,6 +28,8 @@ function mapHistoriaClinicaBase(historia: HistoriaClinicaWithPaciente): Historia
       apellido: historia.paciente.apellido,
       numeroDocumento: historia.paciente.numeroDocumento,
       codigoQr: historia.paciente.codigoQr,
+      direccion: historia.paciente.direccion,
+      localidad: historia.paciente.localidad,
     },
   };
 }

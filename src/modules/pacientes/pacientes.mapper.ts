@@ -21,6 +21,7 @@ function mapServiciosAsignados(row: PacienteDetailRow): PacienteServicioAsignado
     pacienteServicioId: asignacion.id,
     servicioId: asignacion.servicio.id,
     servicioNombre: asignacion.servicio.nombre,
+    controlHorario: asignacion.servicio.controlHorario,
     modalidadCobro: asignacion.modalidadCobro as ModalidadCobro,
     periodoControl: asignacion.periodoControl as PeriodoControl,
     cantidadPermitida: asignacion.cantidadPermitida,
@@ -55,6 +56,7 @@ function mapPacienteBaseFields(
     sexo: paciente.sexo,
     telefono: paciente.telefono,
     direccion: paciente.direccion,
+    localidad: paciente.localidad,
     numeroAfiliado: paciente.numeroAfiliado,
     createdAt: paciente.createdAt.toISOString(),
   };

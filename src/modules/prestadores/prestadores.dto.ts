@@ -3,6 +3,12 @@ import type { PrestadorEstadoCuentaDto } from "../../shared/reportes/mapEstadoCu
 
 export type { PrestadorEstadoCuentaDto };
 
+export interface PrestadorServicioResumenDto {
+  id: number;
+  nombre: string;
+  estado: boolean;
+}
+
 export interface PrestadorListItemDto {
   id: number;
   userId: number;
@@ -19,6 +25,8 @@ export interface PrestadorListItemDto {
   usuarioEstado: boolean;
   createdAt: string;
   updatedAt: string;
+  /** Servicios habilitados en `prestador_servicios` (un servicio puede tener varios prestadores). */
+  servicios: PrestadorServicioResumenDto[];
   estadoCuenta?: PrestadorEstadoCuentaDto;
 }
 

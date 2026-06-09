@@ -93,3 +93,21 @@ export const bulkUpdateVisitaFinanzasSchema = z
   .superRefine(finanzasFlagsRefine);
 
 export type BulkUpdateVisitaFinanzasInput = z.infer<typeof bulkUpdateVisitaFinanzasSchema>;
+
+export const visitaPendienteQuerySchema = z.object({
+  pacienteServicioId: z.coerce.number().int().positive(),
+});
+
+export type VisitaPendienteQuery = z.infer<typeof visitaPendienteQuerySchema>;
+
+export const iniciarVisitaSchema = z.object({
+  pacienteServicioId: z.coerce.number().int().positive(),
+});
+
+export type IniciarVisitaInput = z.infer<typeof iniciarVisitaSchema>;
+
+export const finalizarVisitaSchema = z.object({
+  observaciones: z.string().max(5000).optional().nullable(),
+});
+
+export type FinalizarVisitaInput = z.infer<typeof finalizarVisitaSchema>;

@@ -45,6 +45,11 @@ export function mapPrestadorToDto(prestador: PrestadorWithUser): PrestadorListIt
     usuarioEstado: prestador.user.estado,
     createdAt: prestador.createdAt.toISOString(),
     updatedAt: prestador.updatedAt.toISOString(),
+    servicios: prestador.servicios.map((link) => ({
+      id: link.servicio.id,
+      nombre: link.servicio.nombre,
+      estado: link.servicio.estado,
+    })),
   };
 }
 

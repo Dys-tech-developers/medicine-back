@@ -2,7 +2,12 @@ import { AppError } from "../../core/errors/AppError.js";
 import { ROLE } from "../../shared/constants/roles.js";
 import type { UserPublicDto } from "../auth/auth.dto.js";
 import type { UserRepository } from "./users.repository.js";
-import type { ListUsersQuery, UpdateUserEstadoInput } from "./users.validation.js";
+import { assertEmailAvailable, normalizeProfileUpdate } from "./users.profile.js";
+import type {
+  ListUsersQuery,
+  UpdateUserEstadoInput,
+  UpdateUserProfileInput,
+} from "./users.validation.js";
 import type { PaginatedUsersDto } from "./users.dto.js";
 import { mapPaginatedUsers, mapUserToPublicDto } from "./users.mapper.js";
 
@@ -35,6 +40,21 @@ export class UserService {
     }
 
     const updated = await this.userRepository.updateEstado(id, input.estado);
+    return mapUserToPublicDto(updated);
+  }
+
+  async updateProfile(id: number, input: UpdateUserProfileInput): Promise<UserPublicDto> {
+    const existing = await this.userRepository.findByIdWithRoles(id);
+    if (!existing) {
+      throw AppError.notFound("Usuario no encontrado");
+    }
+
+    const data = normalizeProfileUpdate(input);
+    if (data.email !== undefined) {
+      await assertEmailAvailable(this.userRepository, data.email, id);
+    }
+
+    const updated = await this.userRepository.updateProfile(id, data);
     return mapUserToPublicDto(updated);
   }
 }

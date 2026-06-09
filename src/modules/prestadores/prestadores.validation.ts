@@ -23,6 +23,11 @@ export const listPrestadoresQuerySchema = z
   .object({
     page: z.coerce.number().int().min(1).default(1),
     pageSize: z.coerce.number().int().min(1).max(100).default(20),
+    servicioId: z.coerce.number().int().positive().optional(),
+    estado: z
+      .enum(["true", "false"])
+      .optional()
+      .transform((v) => (v === undefined ? undefined : v === "true")),
     fechaDesde: z.coerce.date().optional(),
     fechaHasta: z.coerce.date().optional(),
     periodo: z.enum(PERIODOS_CONTROL).optional(),
@@ -39,6 +44,23 @@ export function listPrestadoresIncluyeEstadoCuenta(query: ListPrestadoresQuery):
   );
 }
 
+const prestadorServicioIdsField = z
+  .array(z.coerce.number().int().positive())
+  .max(50)
+  .superRefine((ids, ctx) => {
+    const unique = new Set(ids);
+    if (unique.size !== ids.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "servicioIds no puede contener duplicados",
+      });
+    }
+  });
+
+export const prestadorIdParamSchema = z.object({
+  id: z.coerce.number().int().positive(),
+});
+
 export const createPrestadorSchema = z.object({
   nombre: z.string().min(1).max(100),
   email: z.string().email().max(150),
@@ -54,6 +76,13 @@ export const createPrestadorSchema = z.object({
   cbu: z.string().min(1).max(150),
   regimenIva: z.enum(REGIMENES_IVA),
   estado: z.boolean().optional(),
+  servicioIds: prestadorServicioIdsField.optional().default([]),
 });
 
 export type CreatePrestadorInput = z.infer<typeof createPrestadorSchema>;
+
+export const updatePrestadorServiciosSchema = z.object({
+  servicioIds: prestadorServicioIdsField,
+});
+
+export type UpdatePrestadorServiciosInput = z.infer<typeof updatePrestadorServiciosSchema>;

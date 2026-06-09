@@ -28,3 +28,10 @@ usersRouter.patch(
   authorizeRoles(ROLE.ADMIN),
   userController.updateEstado,
 );
+
+usersRouter.patch(
+  "/:id",
+  authenticate,
+  authorizeRoles(ROLE.ADMIN),
+  userController.updateProfile,
+);

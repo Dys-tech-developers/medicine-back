@@ -1,5 +1,6 @@
 import type { Response } from "express";
 import type { ApiSuccess } from "../../core/http/apiResponse.js";
+import { AppError } from "../../core/errors/AppError.js";
 import { wrapAsync } from "../../core/http/wrapAsync.js";
 import { parseWithSchema } from "../../core/validation/parseWithSchema.js";
 import type { PacientesService } from "./pacientes.service.js";
@@ -22,14 +23,20 @@ export class PacientesController {
   });
 
   getByCodigoQr = wrapAsync(async (req, res: Response<ApiSuccess<PacienteDto>>) => {
+    if (!req.auth) {
+      throw AppError.unauthorized();
+    }
     const { codigoQr } = parseWithSchema(pacienteCodigoQrParamSchema, req.params);
-    const paciente = await this.pacientesService.getByCodigoQr(codigoQr);
+    const paciente = await this.pacientesService.getByCodigoQr(codigoQr, req.auth);
     res.status(200).json({ success: true, data: paciente });
   });
 
   getById = wrapAsync(async (req, res: Response<ApiSuccess<PacienteDto>>) => {
+    if (!req.auth) {
+      throw AppError.unauthorized();
+    }
     const { id } = parseWithSchema(pacienteIdParamSchema, req.params);
-    const paciente = await this.pacientesService.getById(id);
+    const paciente = await this.pacientesService.getById(id, req.auth);
     res.status(200).json({ success: true, data: paciente });
   });
 

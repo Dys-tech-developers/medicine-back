@@ -13,6 +13,8 @@ import { visitasRouter } from "../modules/visitas/visitas.routes.js";
 import { visitaInsumosRouter } from "../modules/visita-insumos/visita-insumos.routes.js";
 import { reportesRouter } from "../modules/reportes/reportes.routes.js";
 import { usersRouter } from "../modules/users/users.routes.js";
+import { localidadesRouter } from "../modules/localidades/localidades.routes.js";
+import { cargaMasivaRouter } from "../modules/carga-masiva/carga-masiva.routes.js";
 
 export function buildApiRouter(): Router {
   const router = Router();
@@ -29,6 +31,8 @@ export function buildApiRouter(): Router {
   router.use("/visitas/:visitaId/insumos", visitaInsumosRouter);
   router.use("/visitas", visitasRouter);
   router.use("/reportes", reportesRouter);
+  router.use("/localidades", localidadesRouter);
+  router.use("/carga-masiva", cargaMasivaRouter);
   return router;
 }
 

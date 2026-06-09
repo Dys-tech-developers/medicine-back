@@ -4,7 +4,12 @@ import { AppError } from "../../core/errors/AppError.js";
 import { wrapAsync } from "../../core/http/wrapAsync.js";
 import { parseWithSchema } from "../../core/validation/parseWithSchema.js";
 import type { PrestadoresService } from "./prestadores.service.js";
-import { createPrestadorSchema, listPrestadoresQuerySchema } from "./prestadores.validation.js";
+import {
+  createPrestadorSchema,
+  listPrestadoresQuerySchema,
+  prestadorIdParamSchema,
+  updatePrestadorServiciosSchema,
+} from "./prestadores.validation.js";
 import type { PaginatedPrestadoresDto, PrestadorListItemDto } from "./prestadores.dto.js";
 
 export class PrestadoresController {
@@ -24,9 +29,22 @@ export class PrestadoresController {
     res.status(200).json({ success: true, data: result });
   });
 
+  getById = wrapAsync(async (req, res: Response<ApiSuccess<PrestadorListItemDto>>) => {
+    const { id } = parseWithSchema(prestadorIdParamSchema, req.params);
+    const prestador = await this.prestadoresService.getById(id);
+    res.status(200).json({ success: true, data: prestador });
+  });
+
   create = wrapAsync(async (req, res: Response<ApiSuccess<PrestadorListItemDto>>) => {
     const input = parseWithSchema(createPrestadorSchema, req.body);
     const prestador = await this.prestadoresService.create(input);
     res.status(201).json({ success: true, data: prestador });
+  });
+
+  updateServicios = wrapAsync(async (req, res: Response<ApiSuccess<PrestadorListItemDto>>) => {
+    const { id } = parseWithSchema(prestadorIdParamSchema, req.params);
+    const input = parseWithSchema(updatePrestadorServiciosSchema, req.body);
+    const prestador = await this.prestadoresService.updateServicios(id, input);
+    res.status(200).json({ success: true, data: prestador });
   });
 }

@@ -14,6 +14,8 @@ export const servicioWithTarifasInclude = {
           apellido: true,
           numeroDocumento: true,
           codigoQr: true,
+          direccion: true,
+          localidad: true,
         },
       },
     },

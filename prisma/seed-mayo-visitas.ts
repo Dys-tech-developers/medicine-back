@@ -140,6 +140,7 @@ async function seedMayoVisitas(): Promise<number> {
       data: {
         pacienteServicioId: pacienteServicio.id,
         prestadorId: prestador.id,
+        estado: "finalizada",
         fechaInicio,
         fechaFin,
         tiempoMinutos,

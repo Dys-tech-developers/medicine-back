@@ -6,13 +6,19 @@ import { ROLE } from "../../shared/constants/roles.js";
 import { PacientesRepository } from "./pacientes.repository.js";
 import { PacienteServiciosRepository } from "../paciente-servicios/paciente-servicios.repository.js";
 import { PacienteServiciosService } from "../paciente-servicios/paciente-servicios.service.js";
+import { VisitasRepository } from "../visitas/visitas.repository.js";
 import { PacientesService } from "./pacientes.service.js";
 import { PacientesController } from "./pacientes.controller.js";
 
 const pacientesRepository = new PacientesRepository(prisma);
 const pacienteServiciosRepository = new PacienteServiciosRepository(prisma);
 const pacienteServiciosService = new PacienteServiciosService(pacienteServiciosRepository);
-const pacientesService = new PacientesService(pacientesRepository, pacienteServiciosService);
+const visitasRepository = new VisitasRepository(prisma);
+const pacientesService = new PacientesService(
+  pacientesRepository,
+  pacienteServiciosService,
+  visitasRepository,
+);
 const pacientesController = new PacientesController(pacientesService);
 
 export const pacientesRouter = Router();

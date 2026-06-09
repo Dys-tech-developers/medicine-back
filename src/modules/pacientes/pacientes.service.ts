@@ -1,7 +1,9 @@
 import { AppError } from "../../core/errors/AppError.js";
+import { ROLE } from "../../shared/constants/roles.js";
 import { generatePacienteQrDataUrl } from "../../shared/qr/generatePacienteQr.js";
 import type { PacientesRepository } from "./pacientes.repository.js";
 import type { PacienteServiciosService } from "../paciente-servicios/paciente-servicios.service.js";
+import type { VisitasRepository } from "../visitas/visitas.repository.js";
 import type {
   CreatePacienteInput,
   ListPacientesQuery,
@@ -12,30 +14,78 @@ import { mapPaginatedPacientes, mapPacienteToDto } from "./pacientes.mapper.js";
 
 const MODALIDAD_COBRO_POR_HORA = "por_hora" as const;
 
+export interface PacienteAuthContext {
+  userId: number;
+  roles: string[];
+}
+
 export class PacientesService {
   constructor(
     private readonly pacientesRepository: PacientesRepository,
     private readonly pacienteServiciosService: PacienteServiciosService,
+    private readonly visitasRepository: VisitasRepository,
   ) {}
 
   /** Enriquece asignaciones con cupo del período actual (no aplica en `por_hora`). */
   private async aplicarDisponibilidadAsignaciones(
     dto: PacienteDto,
     referencia: Date = new Date(),
+    auth?: PacienteAuthContext,
   ): Promise<PacienteDto> {
+    const prestadorId = auth ? await this.resolvePrestadorIdOpcional(auth) : null;
+
+    const visitasIniciadas =
+      prestadorId !== null
+        ? await this.visitasRepository.findVisitasIniciadasByPacienteServicioIds(
+            dto.servicios
+              .filter((s) => s.controlHorario)
+              .map((s) => s.pacienteServicioId),
+            prestadorId,
+          )
+        : [];
+
+    const visitaPorAsignacion = new Map(
+      visitasIniciadas.map((v) => [v.pacienteServicioId, v]),
+    );
+
     const servicios = await Promise.all(
       dto.servicios.map(async (s) => {
-        if (s.modalidadCobro === MODALIDAD_COBRO_POR_HORA) {
-          return s;
+        const visitaIniciada = visitaPorAsignacion.get(s.pacienteServicioId);
+        const conPendiente =
+          visitaIniciada !== undefined
+            ? {
+                ...s,
+                visitaPendiente: {
+                  id: visitaIniciada.id,
+                  fechaInicio: visitaIniciada.fechaInicio.toISOString(),
+                },
+              }
+            : s;
+
+        if (conPendiente.modalidadCobro === MODALIDAD_COBRO_POR_HORA) {
+          return conPendiente;
         }
         const disponibilidad = await this.pacienteServiciosService.getDisponibilidad(
-          s.pacienteServicioId,
+          conPendiente.pacienteServicioId,
           referencia,
         );
-        return { ...s, disponibilidad };
+        return { ...conPendiente, disponibilidad };
       }),
     );
     return { ...dto, servicios };
+  }
+
+  private async resolvePrestadorIdOpcional(auth: PacienteAuthContext): Promise<number | null> {
+    const isPrestador = auth.roles.includes(ROLE.PRESTADOR);
+    if (!isPrestador) {
+      return null;
+    }
+
+    const prestador = await this.visitasRepository.findPrestadorByUserId(auth.userId);
+    if (!prestador?.estado) {
+      return null;
+    }
+    return prestador.id;
   }
 
   async list(query: ListPacientesQuery): Promise<PaginatedPacientesDto> {
@@ -43,7 +93,7 @@ export class PacientesService {
     return mapPaginatedPacientes(result);
   }
 
-  async getById(id: number): Promise<PacienteDto> {
+  async getById(id: number, auth?: PacienteAuthContext): Promise<PacienteDto> {
     const paciente = await this.pacientesRepository.findById(id);
     if (!paciente) {
       throw AppError.notFound("Paciente no encontrado");
@@ -51,10 +101,10 @@ export class PacientesService {
 
     const qrDataUrl = await generatePacienteQrDataUrl(paciente.codigoQr);
     const dto = mapPacienteToDto(paciente, qrDataUrl);
-    return this.aplicarDisponibilidadAsignaciones(dto);
+    return this.aplicarDisponibilidadAsignaciones(dto, new Date(), auth);
   }
 
-  async getByCodigoQr(codigoQr: string): Promise<PacienteDto> {
+  async getByCodigoQr(codigoQr: string, auth?: PacienteAuthContext): Promise<PacienteDto> {
     const paciente = await this.pacientesRepository.findByCodigoQr(codigoQr);
     if (!paciente) {
       throw AppError.notFound("Paciente no encontrado para ese código QR");
@@ -62,7 +112,7 @@ export class PacientesService {
 
     const qrDataUrl = await generatePacienteQrDataUrl(paciente.codigoQr);
     const dto = mapPacienteToDto(paciente, qrDataUrl);
-    return this.aplicarDisponibilidadAsignaciones(dto);
+    return this.aplicarDisponibilidadAsignaciones(dto, new Date(), auth);
   }
 
   async create(input: CreatePacienteInput): Promise<PacienteDto> {
@@ -77,6 +127,7 @@ export class PacientesService {
       sexo: input.sexo,
       telefono: input.telefono.trim(),
       direccion: input.direccion.trim(),
+      localidad: input.localidad.trim(),
       numeroAfiliado: input.numeroAfiliado.trim(),
     });
 
@@ -106,6 +157,7 @@ export class PacientesService {
       ...(input.sexo !== undefined ? { sexo: input.sexo } : {}),
       ...(input.telefono !== undefined ? { telefono: input.telefono.trim() } : {}),
       ...(input.direccion !== undefined ? { direccion: input.direccion.trim() } : {}),
+      ...(input.localidad !== undefined ? { localidad: input.localidad.trim() } : {}),
       ...(input.numeroAfiliado !== undefined
         ? { numeroAfiliado: input.numeroAfiliado.trim() }
         : {}),

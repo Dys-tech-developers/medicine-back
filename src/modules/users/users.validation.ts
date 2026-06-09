@@ -18,3 +18,14 @@ export const updateUserEstadoSchema = z.object({
 });
 
 export type UpdateUserEstadoInput = z.infer<typeof updateUserEstadoSchema>;
+
+export const updateUserProfileSchema = z
+  .object({
+    nombre: z.string().min(1).max(100).optional(),
+    email: z.string().email().max(150).optional(),
+  })
+  .refine((data) => data.nombre !== undefined || data.email !== undefined, {
+    message: "Debés enviar al menos nombre o email",
+  });
+
+export type UpdateUserProfileInput = z.infer<typeof updateUserProfileSchema>;
