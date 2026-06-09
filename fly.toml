@@ -1,10 +1,10 @@
-# fly.toml app configuration file generated for medicine-back on 2026-06-09T17:34:24Z
+# fly.toml app configuration file generated for medicine-back on 2026-06-09T17:50:26Z
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
 app = 'medicine-back'
-primary_region = 'iad'
+primary_region = 'ams'
 
 [build]
 
