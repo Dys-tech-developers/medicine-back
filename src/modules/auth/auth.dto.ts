@@ -9,9 +9,14 @@ export interface UserPublicDto {
 
 export interface AuthResponseDto {
   accessToken: string;
+  refreshToken: string;
   user: UserPublicDto;
 }
 
 export interface LogoutResponseDto {
+  message: string;
+}
+
+export interface MessageResponseDto {
   message: string;
 }

@@ -80,4 +80,91 @@ export class AuthRepository {
       where: { expiresAt: { lt: new Date() } },
     });
   }
+
+  async createRefreshToken(input: {
+    tokenHash: string;
+    userId: number;
+    familyId: string;
+    expiresAt: Date;
+  }): Promise<void> {
+    await this.db.refreshToken.create({
+      data: input,
+    });
+  }
+
+  async findRefreshTokenByHash(tokenHash: string) {
+    return this.db.refreshToken.findUnique({
+      where: { tokenHash },
+    });
+  }
+
+  async revokeRefreshToken(tokenHash: string): Promise<void> {
+    await this.db.refreshToken.updateMany({
+      where: { tokenHash, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+  }
+
+  async revokeRefreshTokenFamily(familyId: string): Promise<void> {
+    await this.db.refreshToken.updateMany({
+      where: { familyId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+  }
+
+  async revokeAllRefreshTokensForUser(userId: number): Promise<void> {
+    await this.db.refreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+  }
+
+  async deleteExpiredRefreshTokens(): Promise<void> {
+    await this.db.refreshToken.deleteMany({
+      where: { expiresAt: { lt: new Date() } },
+    });
+  }
+
+  async findUserForPasswordReset(email: string) {
+    return this.db.user.findUnique({
+      where: { email: email.toLowerCase() },
+      select: {
+        id: true,
+        email: true,
+        nombre: true,
+        estado: true,
+        resetCodeHash: true,
+        resetCodeExpiresAt: true,
+      },
+    });
+  }
+
+  async setPasswordResetCode(
+    userId: number,
+    resetCodeHash: string,
+    resetCodeExpiresAt: Date,
+  ): Promise<void> {
+    await this.db.user.update({
+      where: { id: userId },
+      data: { resetCodeHash, resetCodeExpiresAt },
+    });
+  }
+
+  async clearPasswordResetCode(userId: number): Promise<void> {
+    await this.db.user.update({
+      where: { id: userId },
+      data: { resetCodeHash: null, resetCodeExpiresAt: null },
+    });
+  }
+
+  async resetPassword(userId: number, passwordHash: string): Promise<void> {
+    await this.db.user.update({
+      where: { id: userId },
+      data: {
+        passwordHash,
+        resetCodeHash: null,
+        resetCodeExpiresAt: null,
+      },
+    });
+  }
 }

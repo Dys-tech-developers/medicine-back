@@ -15,6 +15,7 @@ import { reportesRouter } from "../modules/reportes/reportes.routes.js";
 import { usersRouter } from "../modules/users/users.routes.js";
 import { localidadesRouter } from "../modules/localidades/localidades.routes.js";
 import { cargaMasivaRouter } from "../modules/carga-masiva/carga-masiva.routes.js";
+import { cronRouter } from "../modules/cron/cron.routes.js";
 
 export function buildApiRouter(): Router {
   const router = Router();
@@ -33,6 +34,7 @@ export function buildApiRouter(): Router {
   router.use("/reportes", reportesRouter);
   router.use("/localidades", localidadesRouter);
   router.use("/carga-masiva", cargaMasivaRouter);
+  router.use("/internal/cron", cronRouter);
   return router;
 }
 

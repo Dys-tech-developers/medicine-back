@@ -58,11 +58,36 @@ export interface VisitaPendienteResumenDto {
   id: number;
   fechaInicio: string;
   estado: VisitaEstado;
+  /** ISO; null si la asignación no tiene `cantidadHoras`. */
+  fechaLimite: string | null;
+}
+
+export interface CoberturaActivaDto {
+  visitaId: number;
+  prestadorId: number;
+  fechaInicio: string;
 }
 
 export interface VisitaPendienteDto {
   tieneVisitaPendiente: boolean;
   visita: VisitaPendienteResumenDto | null;
+  /** Visitas cerradas automáticamente en esta consulta por superar el límite de horas. */
+  visitasCerradasAutomaticamente: number;
+  modoRelevo?: boolean;
+  coberturaActiva?: CoberturaActivaDto | null;
+}
+
+export interface RelevarVisitaDto {
+  huboRelevo: boolean;
+  visitaAnterior: VisitaDto | null;
+  visita: VisitaDto;
+}
+
+export type GestionarTramoAdminAccion = "iniciar" | "finalizar" | "cancelar";
+
+export interface GestionarTramoAdminDto {
+  accion: GestionarTramoAdminAccion;
+  visita: VisitaDto;
 }
 
 export interface VisitaDto {
@@ -74,6 +99,9 @@ export interface VisitaDto {
   fechaFin: string | null;
   tiempoMinutos: number | null;
   observaciones: string | null;
+  cierreAutomatico: boolean;
+  cierrePorRelevo: boolean;
+  prestadorRelevoId: number | null;
   createdAt: string;
   updatedAt: string;
   pacienteServicio: VisitaPacienteServicioResumenDto;

@@ -2,10 +2,8 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// Desarrollo sin servidor: SQLite (archivo en prisma/dev.db con DATABASE_URL=file:./dev.db).
-// Producción: cambiar a provider = "postgresql" y URL postgres; podés volver a añadir @db.VarChar / @db.Date según Prisma.
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -16,16 +14,34 @@ enum Sexo {
 }
 
 model User {
-  id           Int       @id @default(autoincrement())
-  nombre       String
-  email        String    @unique
-  passwordHash String    @map("password_hash")
-  estado       Boolean   @default(true)
-  createdAt    DateTime  @default(now()) @map("created_at")
-  roles        UserRole[]
-  prestador    Prestador?
+  id                 Int            @id @default(autoincrement())
+  nombre             String
+  email              String         @unique
+  passwordHash       String         @map("password_hash")
+  estado             Boolean        @default(true)
+  resetCodeHash      String?        @map("reset_code_hash")
+  resetCodeExpiresAt DateTime?      @map("reset_code_expires_at")
+  createdAt          DateTime       @default(now()) @map("created_at")
+  roles              UserRole[]
+  prestador          Prestador?
+  refreshTokens      RefreshToken[]
 
   @@map("users")
+}
+
+model RefreshToken {
+  tokenHash String    @id @map("token_hash")
+  userId    Int       @map("user_id")
+  familyId  String    @map("family_id")
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
 }
 
 model Role {
@@ -60,9 +76,11 @@ model Prestador {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  servicios         PrestadorServicio[]
-  visitas           Visita[]
-  pacienteServicios PacienteServicio[]
+  servicios                    PrestadorServicio[]
+  visitas                      Visita[]
+  visitasRelevadas             Visita[]                    @relation("VisitaRelevoPor")
+  pacienteServicios            PacienteServicio[]
+  pacienteServicioAsignaciones PacienteServicioPrestador[]
 
   @@map("prestadores")
 }
@@ -84,6 +102,7 @@ model Servicio {
   descripcion      String?
   estado           Boolean              @default(true)
   controlHorario   Boolean              @default(false) @map("control_horario")
+  modoRelevo       Boolean              @default(false) @map("modo_relevo")
   createdAt        DateTime             @default(now()) @map("created_at")
   prestadores      PrestadorServicio[]
   tarifas          ServicioTarifa[]
@@ -122,7 +141,7 @@ model Paciente {
   codigoQr        String    @unique @map("codigo_qr")
   nombre          String
   apellido        String
-  numeroDocumento String    @map("numero_documento")
+  numeroDocumento String    @unique @map("numero_documento")
   fechaNacimiento DateTime  @map("fecha_nacimiento")
   sexo            Sexo
   telefono        String
@@ -181,17 +200,32 @@ model PacienteServicio {
   cantidadHoras    Int?      @map("cantidad_horas")
   modalidadCobro   String    @map("modalidad_cobro")
   estado           String
+  /** Horario diario autorizado (HH:mm local Argentina). Ambos null = 24 h por día. */
+  coberturaDiariaInicio String? @map("cobertura_diaria_inicio")
+  coberturaDiariaFin    String? @map("cobertura_diaria_fin")
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
   paciente         Paciente  @relation(fields: [pacienteId], references: [id], onDelete: Restrict)
   servicio         Servicio  @relation(fields: [servicioId], references: [id], onDelete: Restrict)
-  prestador        Prestador? @relation(fields: [prestadorId], references: [id], onDelete: Restrict)
-  visitas          Visita[]
+  prestador            Prestador?                  @relation(fields: [prestadorId], references: [id], onDelete: Restrict)
+  prestadoresAsignados PacienteServicioPrestador[]
+  visitas              Visita[]
 
   @@index([pacienteId])
   @@index([servicioId])
   @@index([prestadorId])
   @@map("paciente_servicios")
+}
+
+model PacienteServicioPrestador {
+  pacienteServicioId Int              @map("paciente_servicio_id")
+  prestadorId        Int              @map("prestador_id")
+  pacienteServicio   PacienteServicio @relation(fields: [pacienteServicioId], references: [id], onDelete: Cascade)
+  prestador          Prestador        @relation(fields: [prestadorId], references: [id], onDelete: Restrict)
+
+  @@id([pacienteServicioId, prestadorId])
+  @@index([prestadorId])
+  @@map("paciente_servicio_prestadores")
 }
 
 model Visita {
@@ -203,10 +237,14 @@ model Visita {
   fechaFin           DateTime?  @map("fecha_fin")
   tiempoMinutos      Int?       @map("tiempo_minutos")
   observaciones      String?
+  cierreAutomatico   Boolean    @default(false) @map("cierre_automatico")
+  cierrePorRelevo    Boolean    @default(false) @map("cierre_por_relevo")
+  prestadorRelevoId  Int?       @map("prestador_relevo_id")
   createdAt          DateTime   @default(now()) @map("created_at")
   updatedAt          DateTime   @updatedAt @map("updated_at")
   pacienteServicio   PacienteServicio @relation(fields: [pacienteServicioId], references: [id], onDelete: Cascade)
   prestador          Prestador  @relation(fields: [prestadorId], references: [id], onDelete: Restrict)
+  prestadorRelevo    Prestador? @relation("VisitaRelevoPor", fields: [prestadorRelevoId], references: [id], onDelete: Restrict)
   insumos            VisitaInsumo[]
   finanzas           VisitaFinanzas?
 

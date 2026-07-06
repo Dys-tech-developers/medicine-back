@@ -5,13 +5,16 @@ import fs from 'node:fs'
 
 const env = { ...process.env }
 
-// If running the web server then migrate existing database
+// Al arrancar en producción: aplicar migraciones. Seed automático solo en SQLite nuevo.
 if (process.argv.slice(-3).join(' ') === 'npm run start') {
-  const url = new URL(process.env.DATABASE_URL)
-  const target = url.protocol === 'file:' && url.pathname
-  const newDb = target && !fs.existsSync(target)
   await exec('npx prisma migrate deploy')
-  if (newDb) await exec('tsx prisma/seed.ts')
+  const url = process.env.DATABASE_URL
+  if (url?.startsWith('file:')) {
+    const fileUrl = new URL(url)
+    const target = fileUrl.pathname
+    const newDb = target && !fs.existsSync(target)
+    if (newDb) await exec('tsx prisma/seed.ts')
+  }
 }
 
 // launch application

@@ -31,4 +31,11 @@ insumosRouter.post("/", authenticate, authorizeRoles(ROLE.ADMIN), insumosControl
 
 insumosRouter.patch("/:id", authenticate, authorizeRoles(ROLE.ADMIN), insumosController.update);
 
+insumosRouter.delete(
+  "/bulk",
+  authenticate,
+  authorizeRoles(ROLE.ADMIN),
+  insumosController.removeMany,
+);
+
 insumosRouter.delete("/:id", authenticate, authorizeRoles(ROLE.ADMIN), insumosController.remove);

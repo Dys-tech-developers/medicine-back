@@ -16,8 +16,30 @@ import {
 } from "./paciente-servicios.mapper.js";
 import { PERIODOS_CONTROL } from "../../shared/constants/periodo-control.js";
 import type { PeriodoControl } from "../../shared/constants/periodo-control.js";
+import { PACIENTE_SERVICIO_ESTADO } from "../../shared/constants/paciente-servicio-estado.js";
 import { obtenerVentanaTemporal } from "../../shared/paciente-servicio/obtenerVentanaTemporal.js";
 import { asDisponibilidadDto } from "../../shared/paciente-servicio/asDisponibilidadDto.js";
+import {
+  camposAsignacionFaltantes,
+  resolveAsignacionCamposParaRelevo,
+} from "../../shared/servicio/reglasAsignacion.js";
+import {
+  normalizarCoberturaDiaria,
+  validarCoberturaDiaria,
+} from "../../shared/paciente-servicio/coberturaDiaria.js";
+
+function resolvePrestadorIdsFromInput(input: {
+  prestadorId?: number | null | undefined;
+  prestadorIds?: number[] | undefined;
+}): number[] | undefined {
+  if (input.prestadorIds !== undefined) {
+    return [...new Set(input.prestadorIds)];
+  }
+  if (input.prestadorId != null) {
+    return [input.prestadorId];
+  }
+  return undefined;
+}
 
 function isPeriodoControl(value: string): value is PeriodoControl {
   return (PERIODOS_CONTROL as readonly string[]).includes(value);
@@ -72,22 +94,57 @@ export class PacienteServiciosService {
 
   async create(input: CreatePacienteServicioInput): Promise<PacienteServicioDto> {
     await this.validatePaciente(input.pacienteId);
-    await this.validateServicio(input.servicioId);
-    if (input.prestadorId != null) {
-      await this.validatePrestadorParaServicio(input.prestadorId, input.servicioId);
+    const servicio = await this.validateServicio(input.servicioId);
+    const prestadorIds = resolvePrestadorIdsFromInput(input) ?? [];
+
+    if (servicio.modoRelevo && prestadorIds.length === 0) {
+      throw AppError.badRequest(
+        "En servicios con modo relevo debe indicar al menos un prestador en prestadorIds.",
+      );
     }
+
+    for (const prestadorId of prestadorIds) {
+      await this.validatePrestadorParaServicio(prestadorId, input.servicioId);
+    }
+
+    const faltantes = camposAsignacionFaltantes(servicio, input);
+    if (faltantes.length > 0) {
+      throw AppError.badRequest(
+        `Campos obligatorios para este servicio: ${faltantes.join(", ")}`,
+      );
+    }
+
+    const camposResueltos = this.resolverCamposAsignacion(servicio, input);
+    const coberturaDiaria = this.resolverCoberturaDiaria(servicio, input);
+
+    this.validateModalidadPorHora(
+      camposResueltos.modalidadCobro,
+      camposResueltos.cantidadHoras,
+      servicio.modoRelevo,
+    );
+
+    if (input.estado === PACIENTE_SERVICIO_ESTADO.ACTIVA) {
+      await this.assertSinAsignacionActivaDuplicada(input.pacienteId, input.servicioId);
+    }
+
+    const usarTablaPuente = input.prestadorIds !== undefined;
+    const prestadorId =
+      usarTablaPuente || servicio.modoRelevo ? null : (input.prestadorId ?? null);
 
     const row = await this.repository.create({
       pacienteId: input.pacienteId,
       servicioId: input.servicioId,
-      prestadorId: input.prestadorId ?? null,
+      prestadorId,
+      ...(usarTablaPuente || servicio.modoRelevo ? { prestadorIds } : {}),
       fechaInicio: input.fechaInicio,
       fechaFin: input.fechaFin ?? null,
-      periodoControl: input.periodoControl,
-      cantidadPermitida: input.cantidadPermitida,
-      cantidadHoras: input.cantidadHoras ?? null,
-      modalidadCobro: input.modalidadCobro,
+      periodoControl: camposResueltos.periodoControl,
+      cantidadPermitida: camposResueltos.cantidadPermitida,
+      cantidadHoras: camposResueltos.cantidadHoras,
+      modalidadCobro: camposResueltos.modalidadCobro,
       estado: input.estado,
+      coberturaDiariaInicio: coberturaDiaria.coberturaDiariaInicio,
+      coberturaDiariaFin: coberturaDiaria.coberturaDiariaFin,
     });
 
     return mapPacienteServicioToDto(row);
@@ -103,12 +160,21 @@ export class PacienteServiciosService {
       await this.validatePaciente(input.pacienteId);
     }
 
+    const pacienteId = input.pacienteId ?? existing.pacienteId;
     const servicioId = input.servicioId ?? existing.servicioId;
-    if (input.servicioId !== undefined) {
-      await this.validateServicio(input.servicioId);
-    }
+    const servicio = await this.validateServicio(servicioId);
 
-    if (input.prestadorId != null) {
+    const prestadorIdsInput = resolvePrestadorIdsFromInput(input);
+    if (prestadorIdsInput !== undefined) {
+      if (servicio.modoRelevo && prestadorIdsInput.length === 0) {
+        throw AppError.badRequest(
+          "En servicios con modo relevo debe indicar al menos un prestador en prestadorIds.",
+        );
+      }
+      for (const prestadorId of prestadorIdsInput) {
+        await this.validatePrestadorParaServicio(prestadorId, servicioId);
+      }
+    } else if (input.prestadorId != null) {
       await this.validatePrestadorParaServicio(input.prestadorId, servicioId);
     } else if (
       input.prestadorId === undefined &&
@@ -118,20 +184,72 @@ export class PacienteServiciosService {
       await this.validatePrestadorParaServicio(existing.prestadorId, servicioId);
     }
 
-    await this.validateCupoTrasCambioReglas(existing, input);
+    await this.validateCupoTrasCambioReglas(existing, input, servicio.modoRelevo);
+
+    const estado = input.estado ?? existing.estado;
+    const camposResueltos = this.resolverCamposAsignacion(servicio, {
+      periodoControl:
+        input.periodoControl ?? (servicio.modoRelevo ? undefined : existing.periodoControl),
+      cantidadPermitida:
+        input.cantidadPermitida ??
+        (servicio.modoRelevo ? undefined : existing.cantidadPermitida),
+      modalidadCobro:
+        input.modalidadCobro ?? (servicio.modoRelevo ? undefined : existing.modalidadCobro),
+      cantidadHoras:
+        input.cantidadHoras !== undefined
+          ? input.cantidadHoras
+          : servicio.modoRelevo
+            ? undefined
+            : existing.cantidadHoras,
+    });
+
+    const coberturaDiaria = this.resolverCoberturaDiaria(servicio, input, existing);
+
+    this.validateModalidadPorHora(
+      camposResueltos.modalidadCobro,
+      camposResueltos.cantidadHoras,
+      servicio.modoRelevo,
+    );
+
+    if (estado === PACIENTE_SERVICIO_ESTADO.ACTIVA) {
+      await this.assertSinAsignacionActivaDuplicada(pacienteId, servicioId, id);
+    }
+
+    const usarTablaPuente = input.prestadorIds !== undefined;
+    const prestadorIdUpdate =
+      usarTablaPuente || servicio.modoRelevo
+        ? null
+        : input.prestadorId !== undefined
+          ? input.prestadorId
+          : undefined;
 
     const row = await this.repository.update(id, {
       ...(input.pacienteId !== undefined ? { pacienteId: input.pacienteId } : {}),
       ...(input.servicioId !== undefined ? { servicioId: input.servicioId } : {}),
-      ...(input.prestadorId !== undefined ? { prestadorId: input.prestadorId } : {}),
+      ...(prestadorIdUpdate !== undefined ? { prestadorId: prestadorIdUpdate } : {}),
+      ...(usarTablaPuente ? { prestadorIds: prestadorIdsInput ?? [] } : {}),
       ...(input.fechaInicio !== undefined ? { fechaInicio: input.fechaInicio } : {}),
       ...(input.fechaFin !== undefined ? { fechaFin: input.fechaFin } : {}),
-      ...(input.periodoControl !== undefined ? { periodoControl: input.periodoControl } : {}),
-      ...(input.cantidadPermitida !== undefined
-        ? { cantidadPermitida: input.cantidadPermitida }
+      ...(servicio.modoRelevo || input.periodoControl !== undefined
+        ? { periodoControl: camposResueltos.periodoControl }
         : {}),
-      ...(input.cantidadHoras !== undefined ? { cantidadHoras: input.cantidadHoras } : {}),
-      ...(input.modalidadCobro !== undefined ? { modalidadCobro: input.modalidadCobro } : {}),
+      ...(servicio.modoRelevo || input.cantidadPermitida !== undefined
+        ? { cantidadPermitida: camposResueltos.cantidadPermitida }
+        : {}),
+      ...(servicio.modoRelevo || input.cantidadHoras !== undefined
+        ? { cantidadHoras: camposResueltos.cantidadHoras }
+        : {}),
+      ...(servicio.modoRelevo || input.modalidadCobro !== undefined
+        ? { modalidadCobro: camposResueltos.modalidadCobro }
+        : {}),
+      ...(input.coberturaDiariaInicio !== undefined ||
+      input.coberturaDiariaFin !== undefined ||
+      servicio.modoRelevo
+        ? {
+            coberturaDiariaInicio: coberturaDiaria.coberturaDiariaInicio,
+            coberturaDiariaFin: coberturaDiaria.coberturaDiariaFin,
+          }
+        : {}),
       ...(input.estado !== undefined ? { estado: input.estado } : {}),
     });
 
@@ -161,13 +279,105 @@ export class PacienteServiciosService {
     }
   }
 
-  private async validateServicio(servicioId: number): Promise<void> {
+  private async validateServicio(
+    servicioId: number,
+  ): Promise<{ id: number; estado: boolean; controlHorario: boolean; modoRelevo: boolean }> {
     const servicio = await this.repository.findServicioById(servicioId);
     if (!servicio) {
       throw AppError.notFound("Servicio no encontrado");
     }
     if (!servicio.estado) {
-      throw AppError.conflict("El servicio está inactivo");
+      throw AppError.badRequest("El servicio no está activo.");
+    }
+    return servicio;
+  }
+
+  private resolverCamposAsignacion(
+    servicio: { controlHorario: boolean; modoRelevo: boolean },
+    input: {
+      periodoControl?: string | undefined;
+      cantidadPermitida?: number | undefined;
+      modalidadCobro?: string | undefined;
+      cantidadHoras?: number | null | undefined;
+    },
+  ): {
+    periodoControl: string;
+    cantidadPermitida: number;
+    modalidadCobro: string;
+    cantidadHoras: number | null;
+  } {
+    const relevo = resolveAsignacionCamposParaRelevo(servicio.modoRelevo);
+    if (relevo) {
+      return relevo;
+    }
+
+    return {
+      periodoControl: input.periodoControl!,
+      cantidadPermitida: input.cantidadPermitida!,
+      modalidadCobro: input.modalidadCobro!,
+      cantidadHoras: input.cantidadHoras ?? null,
+    };
+  }
+
+  private resolverCoberturaDiaria(
+    servicio: { modoRelevo: boolean },
+    input: {
+      coberturaDiariaInicio?: string | null | undefined;
+      coberturaDiariaFin?: string | null | undefined;
+    },
+    existing?: {
+      coberturaDiariaInicio: string | null;
+      coberturaDiariaFin: string | null;
+    },
+  ): { coberturaDiariaInicio: string | null; coberturaDiariaFin: string | null } {
+    if (!servicio.modoRelevo) {
+      return { coberturaDiariaInicio: null, coberturaDiariaFin: null };
+    }
+
+    const inicio =
+      input.coberturaDiariaInicio !== undefined
+        ? input.coberturaDiariaInicio
+        : (existing?.coberturaDiariaInicio ?? null);
+    const fin =
+      input.coberturaDiariaFin !== undefined
+        ? input.coberturaDiariaFin
+        : (existing?.coberturaDiariaFin ?? null);
+
+    const error = validarCoberturaDiaria(inicio, fin);
+    if (error) {
+      throw AppError.badRequest(error);
+    }
+
+    return normalizarCoberturaDiaria(inicio, fin);
+  }
+
+  private validateModalidadPorHora(
+    modalidadCobro: string,
+    cantidadHoras: number | null | undefined,
+    modoRelevo = false,
+  ): void {
+    if (modoRelevo) {
+      return;
+    }
+    if (modalidadCobro === "por_hora" && (cantidadHoras == null || cantidadHoras < 1)) {
+      throw AppError.badRequest(
+        "La cantidad de horas es obligatoria y debe ser al menos 1 cuando la modalidad de cobro es por hora.",
+      );
+    }
+  }
+
+  private async assertSinAsignacionActivaDuplicada(
+    pacienteId: number,
+    servicioId: number,
+    excludeId?: number,
+  ): Promise<void> {
+    const duplicada = await this.repository.findActivaByPacienteYServicio(
+      pacienteId,
+      servicioId,
+      excludeId,
+    );
+    if (duplicada) {
+      throw AppError.conflict("Este paciente ya tiene una asignación activa para ese servicio.");
     }
   }
 
@@ -179,7 +389,12 @@ export class PacienteServiciosService {
       modalidadCobro: string;
     },
     input: UpdatePacienteServicioInput,
+    modoRelevo = false,
   ): Promise<void> {
+    if (modoRelevo) {
+      return;
+    }
+
     if (input.periodoControl === undefined && input.cantidadPermitida === undefined) {
       return;
     }
@@ -214,12 +429,12 @@ export class PacienteServiciosService {
       throw AppError.notFound("Prestador no encontrado");
     }
     if (!prestador.estado) {
-      throw AppError.conflict("El prestador está inactivo");
+      throw AppError.badRequest("El prestador no está activo.");
     }
 
     const tieneServicio = await this.repository.prestadorTieneServicio(prestadorId, servicioId);
     if (!tieneServicio) {
-      throw AppError.conflict("El prestador no tiene asociado el servicio indicado");
+      throw AppError.badRequest("El prestador no está habilitado para ese servicio.");
     }
   }
 }

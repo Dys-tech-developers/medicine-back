@@ -15,6 +15,7 @@ export interface CreateServicioWithTarifasData {
   nombre: string;
   estado: boolean;
   controlHorario: boolean;
+  modoRelevo: boolean;
   descripcion: string | null;
   tarifas: CreateServicioTarifaData[];
 }
@@ -107,6 +108,7 @@ export class ServiciosRepository {
           nombre: data.nombre,
           estado: data.estado,
           controlHorario: data.controlHorario,
+          modoRelevo: data.modoRelevo,
           descripcion: data.descripcion,
         },
       });

@@ -40,10 +40,13 @@ export class ServiciosService {
       throw AppError.conflict("Ya existe un servicio con ese nombre");
     }
 
+    this.validateModosServicio(input.controlHorario, input.modoRelevo);
+
     const result = await this.serviciosRepository.createWithTarifas({
       nombre,
       estado: input.estado,
       controlHorario: input.controlHorario,
+      modoRelevo: input.modoRelevo,
       descripcion: input.descripcion ?? null,
       tarifas: input.tarifas,
     });
@@ -75,10 +78,15 @@ export class ServiciosService {
       }
     }
 
+    const controlHorario = input.controlHorario ?? existing.controlHorario;
+    const modoRelevo = input.modoRelevo ?? existing.modoRelevo;
+    this.validateModosServicio(controlHorario, modoRelevo);
+
     const servicio = await this.serviciosRepository.update(id, {
       ...(input.nombre !== undefined ? { nombre: input.nombre.trim() } : {}),
       ...(input.descripcion !== undefined ? { descripcion: input.descripcion } : {}),
       ...(input.controlHorario !== undefined ? { controlHorario: input.controlHorario } : {}),
+      ...(input.modoRelevo !== undefined ? { modoRelevo: input.modoRelevo } : {}),
     });
 
     return mapServicioToDto(servicio);
@@ -98,5 +106,13 @@ export class ServiciosService {
     }
 
     await this.serviciosRepository.delete(id);
+  }
+
+  private validateModosServicio(controlHorario: boolean, modoRelevo: boolean): void {
+    if (controlHorario && modoRelevo) {
+      throw AppError.badRequest(
+        "Un servicio no puede tener control horario y modo relevo al mismo tiempo.",
+      );
+    }
   }
 }

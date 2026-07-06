@@ -2,6 +2,7 @@ import { AppError } from "../../core/errors/AppError.js";
 import type { InsumosRepository } from "./insumos.repository.js";
 import type {
   CreateInsumoInput,
+  DeleteInsumosBulkBody,
   ListInsumosQuery,
   UpdateInsumoInput,
 } from "./insumos.validation.js";
@@ -93,11 +94,26 @@ export class InsumosService {
   }
 
   async delete(id: number): Promise<void> {
-    const existing = await this.insumosRepository.findById(id);
-    if (!existing) {
-      throw AppError.notFound("Insumo no encontrado");
+    await this.deleteMany({ ids: [id] });
+  }
+
+  async deleteMany(input: DeleteInsumosBulkBody): Promise<void> {
+    const uniqueIds = [...new Set(input.ids)];
+    const existing = await this.insumosRepository.findManyByIds(uniqueIds);
+
+    if (existing.length !== uniqueIds.length) {
+      const foundIds = new Set(existing.map((i) => i.id));
+      const missing = uniqueIds.filter((id) => !foundIds.has(id));
+      throw AppError.notFound(`Insumos no encontrados: ${missing.join(", ")}`);
     }
 
-    await this.insumosRepository.delete(id);
+    const consumos = await this.insumosRepository.countConsumosEnVisitas(uniqueIds);
+    if (consumos > 0) {
+      throw AppError.conflict(
+        "No se puede eliminar porque uno o más insumos tienen consumos registrados en visitas",
+      );
+    }
+
+    await this.insumosRepository.deleteMany(uniqueIds);
   }
 }

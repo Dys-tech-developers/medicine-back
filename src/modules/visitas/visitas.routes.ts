@@ -26,6 +26,13 @@ visitasRouter.get(
 );
 
 visitasRouter.post(
+  "/relevar",
+  authenticate,
+  authorizeRoles(...writeRoles),
+  visitasController.relevar,
+);
+
+visitasRouter.post(
   "/iniciar",
   authenticate,
   authorizeRoles(...writeRoles),
@@ -42,6 +49,13 @@ visitasRouter.patch(
 visitasRouter.get("/:id", authenticate, authorizeRoles(...readRoles), visitasController.getById);
 
 visitasRouter.post("/", authenticate, authorizeRoles(...writeRoles), visitasController.create);
+
+visitasRouter.post(
+  "/admin/tramo",
+  authenticate,
+  authorizeRoles(ROLE.ADMIN),
+  visitasController.gestionarTramoAdmin,
+);
 
 visitasRouter.post(
   "/:id/finalizar",
@@ -69,6 +83,6 @@ visitasRouter.patch(
 visitasRouter.delete(
   "/:id",
   authenticate,
-  authorizeRoles(ROLE.ADMIN, ROLE.PRESTADOR),
+  authorizeRoles(ROLE.ADMIN),
   visitasController.remove,
 );

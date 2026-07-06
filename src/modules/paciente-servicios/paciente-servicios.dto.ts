@@ -1,6 +1,9 @@
 import type { PacienteServicioEstado } from "../../shared/constants/paciente-servicio-estado.js";
 import type { ModalidadCobro } from "../../shared/constants/modalidad-cobro.js";
 import type { PeriodoControl } from "../../shared/constants/periodo-control.js";
+import type { ReglasAsignacionServicioDto } from "../../shared/servicio/reglasAsignacion.js";
+
+export type { ReglasAsignacionServicioDto } from "../../shared/servicio/reglasAsignacion.js";
 
 export interface PacienteServicioPacienteResumenDto {
   id: number;
@@ -16,6 +19,9 @@ export interface PacienteServicioServicioResumenDto {
   id: number;
   nombre: string;
   estado: boolean;
+  controlHorario: boolean;
+  modoRelevo: boolean;
+  reglasAsignacion: ReglasAsignacionServicioDto;
 }
 
 export interface PacienteServicioPrestadorResumenDto {
@@ -31,6 +37,7 @@ export interface PacienteServicioDto {
   pacienteId: number;
   servicioId: number;
   prestadorId: number | null;
+  prestadorIds: number[];
   fechaInicio: string;
   fechaFin: string | null;
   periodoControl: PeriodoControl;
@@ -38,11 +45,15 @@ export interface PacienteServicioDto {
   cantidadHoras: number | null;
   modalidadCobro: ModalidadCobro;
   estado: PacienteServicioEstado;
+  /** HH:mm Argentina; ambos null = cobertura las 24 h del día (solo modo relevo). */
+  coberturaDiariaInicio: string | null;
+  coberturaDiariaFin: string | null;
   createdAt: string;
   updatedAt: string;
   paciente: PacienteServicioPacienteResumenDto;
   servicio: PacienteServicioServicioResumenDto;
   prestador: PacienteServicioPrestadorResumenDto | null;
+  prestadoresAsignados: PacienteServicioPrestadorResumenDto[];
 }
 
 export interface PaginatedPacienteServiciosDto {

@@ -11,15 +11,34 @@ import {
   resolveTipoDia,
   resolveTipoJornada,
 } from "../../shared/visita/visitaTarifa.js";
+import {
+  acotarTiempoMinutos,
+  buildObservacionesCierreAutomatico,
+  calcularFechaLimiteVisita,
+  calcularFechaLimiteVisitaOpcional,
+  estaVisitaVencida,
+} from "../../shared/visita/visitaLimite.js";
+import { visitaScheduler } from "../../shared/visita/visitaScheduler.js";
 import { assertCupoDisponibleParaVisita } from "../../shared/paciente-servicio/assertCupoDisponible.js";
+import { resolvePrestadoresAsignadosIds } from "../../shared/paciente-servicio/resolvePrestadoresAsignados.js";
+import {
+  estaDentroVentanaCoberturaDiaria,
+  tieneVentanaDiariaConfigurada,
+} from "../../shared/paciente-servicio/coberturaDiaria.js";
 import { assertFechaDentroVigenciaAsignacion } from "../../shared/paciente-servicio/assertFechaDentroVigencia.js";
-import type { PacienteServicioForVisita, VisitasRepository } from "./visitas.repository.js";
+import type {
+  PacienteServicioForVisita,
+  VisitaIniciadaParaCierre,
+  VisitasRepository,
+} from "./visitas.repository.js";
 import type {
   BulkUpdateVisitaFinanzasInput,
   CreateVisitaInput,
+  GestionarTramoAdminInput,
   FinalizarVisitaInput,
   IniciarVisitaInput,
   ListVisitasQuery,
+  RelevarVisitaInput,
   UpdateVisitaFinanzasInput,
   UpdateVisitaInput,
   VisitaPendienteQuery,
@@ -27,6 +46,8 @@ import type {
 import type {
   BulkUpdateVisitaFinanzasResultDto,
   PaginatedVisitasDto,
+  RelevarVisitaDto,
+  GestionarTramoAdminDto,
   VisitaDto,
   VisitaPendienteDto,
 } from "./visitas.dto.js";
@@ -62,14 +83,57 @@ export class VisitasService {
 
   async getPendiente(auth: AuthContext, query: VisitaPendienteQuery): Promise<VisitaPendienteDto> {
     const prestadorId = await this.resolvePrestadorIdForCreate(auth, undefined);
+    const pacienteServicio = await this.getPacienteServicioForVisita(query.pacienteServicioId);
+
+    if (pacienteServicio.servicio.modoRelevo) {
+      const tramoActivo = await this.visitasRepository.findTramoActivo(query.pacienteServicioId);
+      const coberturaActiva =
+        tramoActivo !== null
+          ? {
+              visitaId: tramoActivo.id,
+              prestadorId: tramoActivo.prestadorId,
+              fechaInicio: tramoActivo.fechaInicio.toISOString(),
+            }
+          : null;
+
+      const visitaPropia =
+        tramoActivo !== null && tramoActivo.prestadorId === prestadorId ? tramoActivo : null;
+
+      return {
+        tieneVisitaPendiente: visitaPropia !== null,
+        visita:
+          visitaPropia !== null
+            ? {
+                id: visitaPropia.id,
+                fechaInicio: visitaPropia.fechaInicio.toISOString(),
+                estado: VISITA_ESTADO.INICIADA,
+                fechaLimite: null,
+              }
+            : null,
+        visitasCerradasAutomaticamente: 0,
+        modoRelevo: true,
+        coberturaActiva,
+      };
+    }
+
+    const { cerradas: visitasCerradasAutomaticamente } = await this.cerrarVisitasVencidas({
+      prestadorId,
+      pacienteServicioId: query.pacienteServicioId,
+    });
+
     const visita = await this.visitasRepository.findVisitaIniciada(
       query.pacienteServicioId,
       prestadorId,
     );
 
     if (!visita) {
-      return { tieneVisitaPendiente: false, visita: null };
+      return { tieneVisitaPendiente: false, visita: null, visitasCerradasAutomaticamente };
     }
+
+    const fechaLimite = calcularFechaLimiteVisitaOpcional(
+      visita.fechaInicio,
+      pacienteServicio.cantidadHoras,
+    );
 
     return {
       tieneVisitaPendiente: true,
@@ -77,14 +141,45 @@ export class VisitasService {
         id: visita.id,
         fechaInicio: visita.fechaInicio.toISOString(),
         estado: VISITA_ESTADO.INICIADA,
+        fechaLimite: fechaLimite?.toISOString() ?? null,
       },
+      visitasCerradasAutomaticamente,
     };
+  }
+
+  /**
+   * Cierra visitas iniciadas que superaron `cantidadHoras` de su asignación.
+   * Usado como respaldo al consultar y desde el cron interno.
+   */
+  async cerrarVisitasVencidas(filters: {
+    prestadorId?: number;
+    pacienteServicioId?: number;
+    visitaId?: number;
+    referencia?: Date;
+  }): Promise<{ cerradas: number; visitaIds: number[] }> {
+    const referencia = filters.referencia ?? new Date();
+    const candidatas = await this.visitasRepository.findVisitasIniciadasParaCierre({
+      prestadorId: filters.prestadorId,
+      pacienteServicioId: filters.pacienteServicioId,
+      visitaId: filters.visitaId,
+    });
+
+    const visitaIds: number[] = [];
+    for (const visita of candidatas) {
+      const cerrada = await this.cerrarVisitaVencidaSiCorresponde(visita, referencia);
+      if (cerrada) {
+        visitaIds.push(visita.id);
+      }
+    }
+    return { cerradas: visitaIds.length, visitaIds };
   }
 
   async iniciar(auth: AuthContext, input: IniciarVisitaInput): Promise<VisitaDto> {
     const prestadorId = await this.resolvePrestadorIdForCreate(auth, undefined);
     const pacienteServicio = await this.getPacienteServicioForVisita(input.pacienteServicioId);
+    this.ensureServicioNoModoRelevo(pacienteServicio.servicio.modoRelevo, "iniciar");
     this.ensureServicioConControlHorario(pacienteServicio.servicio.controlHorario);
+    this.ensureCantidadHorasParaControlHorario(pacienteServicio.cantidadHoras);
     this.ensurePacienteServicioActiva(pacienteServicio.estado);
     await this.validatePrestador(prestadorId);
     await this.ensurePrestadorPuedeIniciarVisita(pacienteServicio, prestadorId);
@@ -113,6 +208,8 @@ export class VisitasService {
       observaciones: null,
     });
 
+    this.programarCierreAutomatico(visita.id, fechaInicio, pacienteServicio.cantidadHoras);
+
     return mapVisitaToDto(visita);
   }
 
@@ -136,13 +233,22 @@ export class VisitasService {
       throw AppError.conflict("Este servicio no utiliza control horario por doble escaneo");
     }
 
+    if (existing.pacienteServicio.servicio.modoRelevo) {
+      throw AppError.conflict(
+        "En modo relevo la cuidadora no puede finalizar sola; el cierre ocurre con el relevo",
+      );
+    }
+
     const fechaFin = new Date();
     if (fechaFin <= existing.fechaInicio) {
       throw AppError.badRequest("fechaFin debe ser posterior a fechaInicio");
     }
 
-    const tiempoMinutos = calcularTiempoMinutosEntre(existing.fechaInicio, fechaFin);
     const pacienteServicio = await this.getPacienteServicioForVisita(existing.pacienteServicioId);
+    const tiempoMinutos = acotarTiempoMinutos(
+      calcularTiempoMinutosEntre(existing.fechaInicio, fechaFin),
+      pacienteServicio.cantidadHoras,
+    );
     const finanzas = await this.buildFinanzasForCreate(
       pacienteServicio,
       existing.fechaInicio,
@@ -157,8 +263,216 @@ export class VisitasService {
       tiempoMinutos,
       observaciones,
       finanzas,
+      cierreAutomatico: false,
     });
 
+    visitaScheduler.clear(id);
+
+    return mapVisitaToDto(visita);
+  }
+
+  async relevar(auth: AuthContext, input: RelevarVisitaInput): Promise<RelevarVisitaDto> {
+    const prestadorId = await this.resolvePrestadorIdForCreate(auth, undefined);
+    const pacienteServicio = await this.getPacienteServicioForVisita(input.pacienteServicioId);
+
+    if (!pacienteServicio.servicio.modoRelevo) {
+      throw AppError.conflict(
+        "Este servicio no usa modo relevo; usá iniciar/finalizar o POST /visitas",
+      );
+    }
+
+    this.ensurePacienteServicioActiva(pacienteServicio.estado);
+    await this.validatePrestador(prestadorId);
+    await this.ensurePrestadorAsignadoParaRelevo(pacienteServicio, prestadorId);
+
+    const fechaRelevo = new Date();
+    this.ensureFechaDentroVigenciaAsignacion(pacienteServicio, fechaRelevo);
+    this.ensureDentroVentanaCoberturaDiaria(pacienteServicio, fechaRelevo);
+
+    const tramoActivo = await this.visitasRepository.findTramoActivo(input.pacienteServicioId);
+
+    if (tramoActivo && tramoActivo.prestadorId === prestadorId) {
+      throw AppError.conflict("Ya tenés el tramo activo en esta asignación");
+    }
+
+    if (!tramoActivo) {
+      const visita = await this.visitasRepository.create({
+        pacienteServicioId: input.pacienteServicioId,
+        prestadorId,
+        estado: VISITA_ESTADO.INICIADA,
+        fechaInicio: fechaRelevo,
+        fechaFin: null,
+        tiempoMinutos: null,
+        observaciones: null,
+      });
+
+      return {
+        huboRelevo: false,
+        visitaAnterior: null,
+        visita: mapVisitaToDto(visita),
+      };
+    }
+
+    const tiempoMinutos = calcularTiempoMinutosEntre(tramoActivo.fechaInicio, fechaRelevo);
+    const finanzasAnterior = await this.buildFinanzasForCreate(
+      pacienteServicio,
+      tramoActivo.fechaInicio,
+      tiempoMinutos,
+    );
+
+    const { anterior, actual } = await this.visitasRepository.relevarTramo({
+      pacienteServicioId: input.pacienteServicioId,
+      prestadorId,
+      fechaRelevo,
+      visitaAnteriorId: tramoActivo.id,
+      tiempoMinutosAnterior: tiempoMinutos,
+      observacionesAnterior: tramoActivo.observaciones,
+      finanzasAnterior,
+    });
+
+    return {
+      huboRelevo: true,
+      visitaAnterior: mapVisitaToDto(anterior),
+      visita: mapVisitaToDto(actual),
+    };
+  }
+
+  async gestionarTramoAdmin(
+    auth: AuthContext,
+    input: GestionarTramoAdminInput,
+  ): Promise<GestionarTramoAdminDto> {
+    if (!auth.roles.includes(ROLE.ADMIN)) {
+      throw AppError.forbidden("Solo un administrador puede gestionar tramos de cobertura");
+    }
+
+    switch (input.accion) {
+      case "iniciar": {
+        const visita = await this.iniciarTramoAdmin(input);
+        return { accion: "iniciar", visita };
+      }
+      case "finalizar": {
+        const visita = await this.finalizarTramoAdmin(input.visitaId!, input);
+        return { accion: "finalizar", visita };
+      }
+      case "cancelar": {
+        const visita = await this.cancelarTramoAdmin(input.visitaId!, input);
+        return { accion: "cancelar", visita };
+      }
+    }
+  }
+
+  private async iniciarTramoAdmin(input: GestionarTramoAdminInput): Promise<VisitaDto> {
+    const pacienteServicioId = input.pacienteServicioId!;
+    const prestadorId = input.prestadorId!;
+
+    const pacienteServicio = await this.getPacienteServicioForVisita(pacienteServicioId);
+    if (!pacienteServicio.servicio.modoRelevo) {
+      throw AppError.conflict("Este endpoint de gestión es solo para servicios en modo relevo");
+    }
+
+    this.ensurePacienteServicioActiva(pacienteServicio.estado);
+    await this.validatePrestador(prestadorId);
+    await this.ensurePrestadorAsignadoParaRelevo(pacienteServicio, prestadorId);
+
+    const fechaInicio = new Date();
+    this.ensureFechaDentroVigenciaAsignacion(pacienteServicio, fechaInicio);
+    this.ensureDentroVentanaCoberturaDiaria(pacienteServicio, fechaInicio);
+
+    const tramoActivo = await this.visitasRepository.findTramoActivo(pacienteServicioId);
+    if (tramoActivo) {
+      throw AppError.conflict(
+        "Ya hay un tramo activo en esta asignación; finalizalo o cancelalo antes de iniciar otro",
+      );
+    }
+
+    const visita = await this.visitasRepository.create({
+      pacienteServicioId,
+      prestadorId,
+      estado: VISITA_ESTADO.INICIADA,
+      fechaInicio,
+      fechaFin: null,
+      tiempoMinutos: null,
+      observaciones: input.observaciones ?? null,
+    });
+
+    return mapVisitaToDto(visita);
+  }
+
+  private async finalizarTramoAdmin(
+    id: number,
+    input: { observaciones?: string | null | undefined },
+  ): Promise<VisitaDto> {
+    const existing = await this.visitasRepository.findById(id);
+    if (!existing) {
+      throw AppError.notFound("Visita no encontrada");
+    }
+
+    if (existing.estado !== VISITA_ESTADO.INICIADA) {
+      throw AppError.conflict("Solo se pueden finalizar tramos en estado iniciada");
+    }
+
+    if (!existing.pacienteServicio.servicio.modoRelevo) {
+      throw AppError.conflict(
+        "Este endpoint de gestión es solo para tramos en modo relevo",
+      );
+    }
+
+    const fechaFin = new Date();
+    if (fechaFin <= existing.fechaInicio) {
+      throw AppError.badRequest("fechaFin debe ser posterior a fechaInicio");
+    }
+
+    const pacienteServicio = await this.getPacienteServicioForVisita(existing.pacienteServicioId);
+    const tiempoMinutos = calcularTiempoMinutosEntre(existing.fechaInicio, fechaFin);
+    const finanzas = await this.buildFinanzasForCreate(
+      pacienteServicio,
+      existing.fechaInicio,
+      tiempoMinutos,
+    );
+
+    const observaciones = this.buildObservacionesCierreAdministrativo(
+      existing.observaciones,
+      input.observaciones,
+    );
+
+    const visita = await this.visitasRepository.finalizar(id, {
+      fechaFin,
+      tiempoMinutos,
+      observaciones,
+      finanzas,
+      cierreAutomatico: false,
+      cierrePorRelevo: false,
+    });
+
+    return mapVisitaToDto(visita);
+  }
+
+  private async cancelarTramoAdmin(
+    id: number,
+    input: { observaciones?: string | null | undefined },
+  ): Promise<VisitaDto> {
+    const existing = await this.visitasRepository.findById(id);
+    if (!existing) {
+      throw AppError.notFound("Visita no encontrada");
+    }
+
+    if (existing.estado !== VISITA_ESTADO.INICIADA) {
+      throw AppError.conflict("Solo se pueden cancelar tramos en estado iniciada");
+    }
+
+    if (!existing.pacienteServicio.servicio.modoRelevo) {
+      throw AppError.conflict(
+        "Este endpoint de gestión es solo para tramos en modo relevo",
+      );
+    }
+
+    const observaciones = this.buildObservacionesCancelacionAdministrativa(
+      existing.observaciones,
+      input.observaciones,
+    );
+
+    const visita = await this.visitasRepository.cancelar(id, observaciones);
+    visitaScheduler.clear(id);
     return mapVisitaToDto(visita);
   }
 
@@ -177,12 +491,14 @@ export class VisitasService {
     }
 
     const visita = await this.visitasRepository.cancelar(id);
+    visitaScheduler.clear(id);
     return mapVisitaToDto(visita);
   }
 
   async create(auth: AuthContext, input: CreateVisitaInput): Promise<VisitaDto> {
     const prestadorId = await this.resolvePrestadorIdForCreate(auth, input.prestadorId);
     const pacienteServicio = await this.getPacienteServicioForVisita(input.pacienteServicioId);
+    this.ensureServicioNoModoRelevo(pacienteServicio.servicio.modoRelevo, "registrar");
     this.ensureServicioSinControlHorario(pacienteServicio.servicio.controlHorario);
     this.ensurePacienteServicioActiva(pacienteServicio.estado);
     await this.validatePrestador(prestadorId);
@@ -331,6 +647,10 @@ export class VisitasService {
   }
 
   async delete(auth: AuthContext, id: number): Promise<void> {
+    if (!auth.roles.includes(ROLE.ADMIN)) {
+      throw AppError.forbidden("Solo un administrador puede eliminar visitas");
+    }
+
     const existing = await this.visitasRepository.findById(id);
     if (!existing) {
       throw AppError.notFound("Visita no encontrada");
@@ -338,19 +658,61 @@ export class VisitasService {
 
     if (existing.estado === VISITA_ESTADO.INICIADA) {
       throw AppError.conflict(
-        "No se puede eliminar una visita iniciada; finalizala o cancelala (solo administrador)",
+        "No se puede eliminar una visita iniciada; finalizala o cancelala primero",
       );
     }
 
-    const isAdmin = auth.roles.includes(ROLE.ADMIN);
-    if (!isAdmin) {
-      const ownPrestadorId = await this.getPrestadorIdForUser(auth.userId);
-      if (existing.prestadorId !== ownPrestadorId) {
-        throw AppError.forbidden("No podés eliminar visitas de otros prestadores");
-      }
+    if (existing.finanzas?.facturado || existing.finanzas?.pagado) {
+      throw AppError.conflict(
+        "No se puede eliminar una visita facturada o pagada; desmarcá el estado de cobro antes de eliminarla",
+      );
     }
 
+    visitaScheduler.clear(id);
     await this.visitasRepository.delete(id);
+  }
+
+  private async cerrarVisitaVencidaSiCorresponde(
+    visita: VisitaIniciadaParaCierre,
+    referencia: Date,
+  ): Promise<boolean> {
+    if (!visita.pacienteServicio.servicio.controlHorario) {
+      return false;
+    }
+
+    if (visita.pacienteServicio.servicio.modoRelevo) {
+      return false;
+    }
+
+    const { cantidadHoras } = visita.pacienteServicio;
+    if (!estaVisitaVencida(visita.fechaInicio, cantidadHoras, referencia)) {
+      return false;
+    }
+
+    if (cantidadHoras == null) {
+      return false;
+    }
+
+    const fechaFin = calcularFechaLimiteVisita(visita.fechaInicio, cantidadHoras);
+    const tiempoMinutos = calcularTiempoMinutosEntre(visita.fechaInicio, fechaFin);
+    const pacienteServicio = await this.getPacienteServicioForVisita(visita.pacienteServicioId);
+    const finanzas = await this.buildFinanzasForCreate(
+      pacienteServicio,
+      visita.fechaInicio,
+      tiempoMinutos,
+    );
+
+    await this.visitasRepository.finalizar(visita.id, {
+      fechaFin,
+      tiempoMinutos,
+      observaciones: buildObservacionesCierreAutomatico(visita.observaciones),
+      finanzas,
+      cierreAutomatico: true,
+    });
+
+    visitaScheduler.clear(visita.id);
+
+    return true;
   }
 
   private async buildFinanzasForCreate(
@@ -511,11 +873,15 @@ export class VisitasService {
   private async ensureCupoDisponible(
     pacienteServicio: Pick<
       PacienteServicioForVisita,
-      "id" | "periodoControl" | "cantidadPermitida" | "modalidadCobro"
+      "id" | "periodoControl" | "cantidadPermitida" | "modalidadCobro" | "servicio"
     >,
     fechaReferencia: Date,
     excludeVisitaId?: number,
   ): Promise<void> {
+    if (pacienteServicio.servicio.modoRelevo) {
+      return;
+    }
+
     await assertCupoDisponibleParaVisita({
       pacienteServicioId: pacienteServicio.id,
       periodoControl: pacienteServicio.periodoControl,
@@ -536,6 +902,25 @@ export class VisitasService {
     }
   }
 
+  private ensureCantidadHorasParaControlHorario(cantidadHoras: number | null): void {
+    if (cantidadHoras == null || cantidadHoras < 1) {
+      throw AppError.conflict(
+        "La asignación no tiene cantidad de horas configurada; no se puede iniciar una visita con control horario",
+      );
+    }
+  }
+
+  private programarCierreAutomatico(
+    visitaId: number,
+    fechaInicio: Date,
+    cantidadHoras: number | null,
+  ): void {
+    if (cantidadHoras == null) {
+      return;
+    }
+    visitaScheduler.schedule(visitaId, calcularFechaLimiteVisita(fechaInicio, cantidadHoras));
+  }
+
   private ensureServicioSinControlHorario(controlHorario: boolean): void {
     if (controlHorario) {
       throw AppError.conflict(
@@ -544,10 +929,94 @@ export class VisitasService {
     }
   }
 
-  private async ensurePrestadorPuedeIniciarVisita(
-    pacienteServicio: { prestadorId: number | null; servicioId: number },
+  private ensureDentroVentanaCoberturaDiaria(
+    pacienteServicio: Pick<
+      PacienteServicioForVisita,
+      "coberturaDiariaInicio" | "coberturaDiariaFin"
+    >,
+    referencia: Date,
+  ): void {
+    if (
+      !tieneVentanaDiariaConfigurada(
+        pacienteServicio.coberturaDiariaInicio,
+        pacienteServicio.coberturaDiariaFin,
+      )
+    ) {
+      return;
+    }
+
+    if (
+      !estaDentroVentanaCoberturaDiaria(
+        pacienteServicio.coberturaDiariaInicio,
+        pacienteServicio.coberturaDiariaFin,
+        referencia,
+      )
+    ) {
+      throw AppError.conflict(
+        `Fuera del horario de cobertura autorizado (${pacienteServicio.coberturaDiariaInicio}–${pacienteServicio.coberturaDiariaFin})`,
+      );
+    }
+  }
+
+  private buildObservacionesCierreAdministrativo(
+    existing: string | null,
+    input: string | null | undefined,
+  ): string | null {
+    if (input !== undefined && input !== null && input.trim() !== "") {
+      return input;
+    }
+    const nota = "Cierre administrativo del tramo de cobertura.";
+    return existing ? `${existing}\n${nota}` : nota;
+  }
+
+  private buildObservacionesCancelacionAdministrativa(
+    existing: string | null,
+    input: string | null | undefined,
+  ): string | null {
+    if (input !== undefined && input !== null && input.trim() !== "") {
+      return input;
+    }
+    const nota = "Cancelación administrativa del tramo de cobertura.";
+    return existing ? `${existing}\n${nota}` : nota;
+  }
+
+  private ensureServicioNoModoRelevo(modoRelevo: boolean, accion: string): void {
+    if (modoRelevo) {
+      throw AppError.conflict(
+        `Este servicio usa modo relevo; usá POST /visitas/relevar para ${accion} cobertura`,
+      );
+    }
+  }
+
+  private async ensurePrestadorAsignadoParaRelevo(
+    pacienteServicio: PacienteServicioForVisita,
     prestadorId: number,
   ): Promise<void> {
+    const asignados = resolvePrestadoresAsignadosIds(pacienteServicio);
+    if (asignados.length === 0) {
+      throw AppError.conflict(
+        "La asignación no tiene prestadores habilitados configurados",
+      );
+    }
+    if (!asignados.includes(prestadorId)) {
+      throw AppError.forbidden("No estás habilitada para cubrir esta asignación");
+    }
+  }
+
+  private async ensurePrestadorPuedeIniciarVisita(
+    pacienteServicio: PacienteServicioForVisita,
+    prestadorId: number,
+  ): Promise<void> {
+    const asignados = resolvePrestadoresAsignadosIds(pacienteServicio);
+    if (asignados.length > 0) {
+      if (!asignados.includes(prestadorId)) {
+        throw AppError.forbidden(
+          "No podés iniciar una visita: no estás en la lista de prestadores de esta asignación",
+        );
+      }
+      return;
+    }
+
     if (pacienteServicio.prestadorId != null) {
       if (pacienteServicio.prestadorId !== prestadorId) {
         throw AppError.forbidden(

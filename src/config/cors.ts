@@ -1,6 +1,11 @@
 import type { CorsOptions } from "cors";
 import { env } from "./env.js";
 
+/** Orígenes del frontend en túnel ngrok u otros hosts fijos (además de CORS_ORIGINS y *.ngrok-free.app). */
+export const STATIC_ALLOWED_ORIGINS = [
+  "https://8a41-181-230-197-220.ngrok-free.app",
+];
+
 const DEFAULT_DEV_ORIGINS = [
   "http://localhost:3000",
   "http://localhost:3001",
@@ -22,12 +27,13 @@ function parseOriginsFromEnv(raw: string): string[] {
 function resolveAllowedOrigins(): string[] {
   const fromEnv =
     env.CORS_ORIGINS !== undefined ? parseOriginsFromEnv(env.CORS_ORIGINS) : [];
+  const base = [...STATIC_ALLOWED_ORIGINS, ...fromEnv];
 
   if (env.NODE_ENV === "development") {
-    return [...new Set([...DEFAULT_DEV_ORIGINS, ...fromEnv])];
+    return [...new Set([...DEFAULT_DEV_ORIGINS, ...base])];
   }
 
-  return fromEnv;
+  return [...new Set(base)];
 }
 
 function isNgrokOrLocalhostHostname(hostname: string): boolean {
@@ -35,6 +41,14 @@ function isNgrokOrLocalhostHostname(hostname: string): boolean {
     return true;
   }
   return DEV_HOST_SUFFIXES.some((suffix) => hostname.endsWith(suffix));
+}
+
+export function isRequestOriginAllowed(origin: string): boolean {
+  if (env.NODE_ENV === "development") {
+    return true;
+  }
+
+  return isOriginAllowed(origin, resolveAllowedOrigins());
 }
 
 function isOriginAllowed(origin: string, allowedOrigins: string[]): boolean {

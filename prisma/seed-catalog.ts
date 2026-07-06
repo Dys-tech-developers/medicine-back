@@ -114,8 +114,7 @@ export async function seedServiciosConTarifas(prisma: PrismaClient): Promise<Map
       });
 
       if (!existing) {
-        const factor =
-          variante.tipoDia === "sabado" ? 1.25 : variante.tipoDia === "domingo" ? 1.5 : 1;
+        const factor = variante.tipoDia === "no_habil" ? 1.25 : 1;
         const jornadaFactor = variante.tipoJornada === "nocturno" ? 1.2 : 1;
 
         await prisma.servicioTarifa.create({

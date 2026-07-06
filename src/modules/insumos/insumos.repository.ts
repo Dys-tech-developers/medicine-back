@@ -89,7 +89,27 @@ export class InsumosRepository {
     return this.db.insumo.update({ where: { id }, data });
   }
 
+  async findManyByIds(ids: number[]): Promise<Insumo[]> {
+    return this.db.insumo.findMany({
+      where: { id: { in: ids } },
+      orderBy: { id: "asc" },
+    });
+  }
+
+  async countConsumosEnVisitas(insumoIds: number[]): Promise<number> {
+    return this.db.visitaInsumo.count({
+      where: { insumoId: { in: insumoIds } },
+    });
+  }
+
   async delete(id: number): Promise<Insumo> {
     return this.db.insumo.delete({ where: { id } });
+  }
+
+  async deleteMany(ids: number[]): Promise<number> {
+    const result = await this.db.insumo.deleteMany({
+      where: { id: { in: ids } },
+    });
+    return result.count;
   }
 }

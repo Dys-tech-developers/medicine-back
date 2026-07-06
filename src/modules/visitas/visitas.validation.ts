@@ -106,6 +106,50 @@ export const iniciarVisitaSchema = z.object({
 
 export type IniciarVisitaInput = z.infer<typeof iniciarVisitaSchema>;
 
+export const relevarVisitaSchema = z.object({
+  pacienteServicioId: z.coerce.number().int().positive(),
+});
+
+export type RelevarVisitaInput = z.infer<typeof relevarVisitaSchema>;
+
+export const gestionarTramoAdminSchema = z
+  .object({
+    accion: z.enum(["iniciar", "finalizar", "cancelar"]),
+    pacienteServicioId: z.coerce.number().int().positive().optional(),
+    visitaId: z.coerce.number().int().positive().optional(),
+    prestadorId: z.coerce.number().int().positive().optional(),
+    observaciones: z.string().max(5000).optional().nullable(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.accion === "iniciar") {
+      if (data.pacienteServicioId === undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "pacienteServicioId es obligatorio para iniciar un tramo",
+          path: ["pacienteServicioId"],
+        });
+      }
+      if (data.prestadorId === undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "prestadorId es obligatorio para iniciar un tramo",
+          path: ["prestadorId"],
+        });
+      }
+      return;
+    }
+
+    if (data.visitaId === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "visitaId es obligatorio para finalizar o cancelar un tramo",
+        path: ["visitaId"],
+      });
+    }
+  });
+
+export type GestionarTramoAdminInput = z.infer<typeof gestionarTramoAdminSchema>;
+
 export const finalizarVisitaSchema = z.object({
   observaciones: z.string().max(5000).optional().nullable(),
 });

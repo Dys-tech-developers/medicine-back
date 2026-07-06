@@ -17,6 +17,8 @@ export const pacienteServicioDetailInclude = {
       id: true,
       nombre: true,
       estado: true,
+      controlHorario: true,
+      modoRelevo: true,
     },
   },
   prestador: {
@@ -29,6 +31,22 @@ export const pacienteServicioDetailInclude = {
         },
       },
     },
+  },
+  prestadoresAsignados: {
+    include: {
+      prestador: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              nombre: true,
+              email: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: { prestadorId: "asc" as const },
   },
 } satisfies Prisma.PacienteServicioInclude;
 

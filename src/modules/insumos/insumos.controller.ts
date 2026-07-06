@@ -5,6 +5,7 @@ import { parseWithSchema } from "../../core/validation/parseWithSchema.js";
 import type { InsumosService } from "./insumos.service.js";
 import {
   createInsumoSchema,
+  deleteInsumosBulkBodySchema,
   insumoIdParamSchema,
   listInsumosQuerySchema,
   updateInsumoSchema,
@@ -42,6 +43,12 @@ export class InsumosController {
   remove = wrapAsync(async (req, res) => {
     const { id } = parseWithSchema(insumoIdParamSchema, req.params);
     await this.insumosService.delete(id);
+    res.status(204).send();
+  });
+
+  removeMany = wrapAsync(async (req, res) => {
+    const input = parseWithSchema(deleteInsumosBulkBodySchema, req.body);
+    await this.insumosService.deleteMany(input);
     res.status(204).send();
   });
 }

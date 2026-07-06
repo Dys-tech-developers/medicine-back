@@ -20,6 +20,17 @@ import { PrestadoresImportController } from "./prestadores/prestadores-import.co
 import { PrestadoresImportService } from "./prestadores/prestadores-import.service.js";
 import { PrestadoresPlantillaController } from "./prestadores/prestadores-plantilla.controller.js";
 import { PrestadoresPlantillaService } from "./prestadores/prestadores-plantilla.service.js";
+import { ServiciosService } from "../servicios/servicios.service.js";
+import { ServiciosImportController } from "./servicios/servicios-import.controller.js";
+import { ServiciosImportService } from "./servicios/servicios-import.service.js";
+import { ServiciosPlantillaController } from "./servicios/servicios-plantilla.controller.js";
+import { ServiciosPlantillaService } from "./servicios/servicios-plantilla.service.js";
+import { InsumosRepository } from "../insumos/insumos.repository.js";
+import { InsumosService } from "../insumos/insumos.service.js";
+import { StockImportController } from "./stock/stock-import.controller.js";
+import { StockImportService } from "./stock/stock-import.service.js";
+import { StockPlantillaController } from "./stock/stock-plantilla.controller.js";
+import { StockPlantillaService } from "./stock/stock-plantilla.service.js";
 
 const obrasSocialesRepository = new ObrasSocialesRepository(prisma);
 const localidadesRepository = new LocalidadesRepository(prisma);
@@ -45,15 +56,27 @@ const prestadoresService = new PrestadoresService(
 );
 const prestadoresPlantillaService = new PrestadoresPlantillaService(serviciosRepository);
 const prestadoresImportService = new PrestadoresImportService(prestadoresService, serviciosRepository);
+const serviciosService = new ServiciosService(serviciosRepository);
+const serviciosPlantillaService = new ServiciosPlantillaService();
+const serviciosImportService = new ServiciosImportService(serviciosService);
+const insumosRepository = new InsumosRepository(prisma);
+const insumosService = new InsumosService(insumosRepository);
+const stockPlantillaService = new StockPlantillaService();
+const stockImportService = new StockImportService(insumosService);
 
 const pacientesPlantillaController = new PacientesPlantillaController(pacientesPlantillaService);
 const pacientesImportController = new PacientesImportController(pacientesImportService);
 const prestadoresPlantillaController = new PrestadoresPlantillaController(prestadoresPlantillaService);
 const prestadoresImportController = new PrestadoresImportController(prestadoresImportService);
+const serviciosPlantillaController = new ServiciosPlantillaController(serviciosPlantillaService);
+const serviciosImportController = new ServiciosImportController(serviciosImportService);
+const stockPlantillaController = new StockPlantillaController(stockPlantillaService);
+const stockImportController = new StockImportController(stockImportService);
 
 export const cargaMasivaRouter = Router();
 
 const pacientesWriteRoles = [ROLE.ADMIN, ROLE.OPERADOR] as const;
+const serviciosWriteRoles = [ROLE.ADMIN, ROLE.OPERADOR] as const;
 
 cargaMasivaRouter.get(
   "/pacientes/plantilla",
@@ -83,4 +106,34 @@ cargaMasivaRouter.post(
   authorizeRoles(ROLE.ADMIN),
   uploadExcelSingle,
   prestadoresImportController.importPrestadores,
+);
+
+cargaMasivaRouter.get(
+  "/servicios/plantilla",
+  authenticate,
+  authorizeRoles(...serviciosWriteRoles),
+  serviciosPlantillaController.downloadPlantilla,
+);
+
+cargaMasivaRouter.post(
+  "/servicios",
+  authenticate,
+  authorizeRoles(...serviciosWriteRoles),
+  uploadExcelSingle,
+  serviciosImportController.importServicios,
+);
+
+cargaMasivaRouter.get(
+  "/stock/plantilla",
+  authenticate,
+  authorizeRoles(ROLE.ADMIN),
+  stockPlantillaController.downloadPlantilla,
+);
+
+cargaMasivaRouter.post(
+  "/stock",
+  authenticate,
+  authorizeRoles(ROLE.ADMIN),
+  uploadExcelSingle,
+  stockImportController.importStock,
 );

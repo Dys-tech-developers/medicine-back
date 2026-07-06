@@ -1,0 +1,14 @@
+flowchart TD
+    A[Operador crea paciente y asignación] --> B{Cuidadora escanea QR}
+    B --> C{¿Servicio con control horario?}
+    C -->|Sí| D[Iniciar visita]
+    C -->|No| E[Cargar visita manual con tiempo]
+    D --> F{¿Prestador permitido?}
+    F -->|No| G[Error: no es la titular o sin servicio]
+    F -->|Sí| H[Visita iniciada + límite cantidadHoras]
+    H --> I{¿Cierra a tiempo?}
+    I -->|Sí, manual| J[Finalizar + cobro]
+    I -->|No| K[Cierre automático o al escanear de nuevo]
+    J --> L[Reportes y facturación]
+    K --> L
+    E --> L

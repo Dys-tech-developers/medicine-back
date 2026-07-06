@@ -43,6 +43,42 @@ export interface FinalizarVisitaData {
   tiempoMinutos: number;
   observaciones: string | null;
   finanzas: CreateVisitaFinanzasData;
+  cierreAutomatico?: boolean;
+  cierrePorRelevo?: boolean;
+  prestadorRelevoId?: number | null;
+}
+
+export interface VisitaIniciadaParaCierre {
+  id: number;
+  pacienteServicioId: number;
+  prestadorId: number;
+  fechaInicio: Date;
+  observaciones: string | null;
+  pacienteServicio: {
+    cantidadHoras: number | null;
+    servicio: {
+      controlHorario: boolean;
+      modoRelevo: boolean;
+    };
+  };
+}
+
+export interface TramoActivo {
+  id: number;
+  pacienteServicioId: number;
+  prestadorId: number;
+  fechaInicio: Date;
+  observaciones: string | null;
+}
+
+export interface RelevarTramoData {
+  pacienteServicioId: number;
+  prestadorId: number;
+  fechaRelevo: Date;
+  visitaAnteriorId: number;
+  tiempoMinutosAnterior: number;
+  observacionesAnterior: string | null;
+  finanzasAnterior: CreateVisitaFinanzasData;
 }
 
 export interface PacienteServicioForVisita {
@@ -53,10 +89,15 @@ export interface PacienteServicioForVisita {
   modalidadCobro: string;
   periodoControl: string;
   cantidadPermitida: number;
+  cantidadHoras: number | null;
   fechaInicio: Date;
   fechaFin: Date | null;
+  coberturaDiariaInicio: string | null;
+  coberturaDiariaFin: string | null;
+  prestadoresAsignados: Array<{ prestadorId: number }>;
   servicio: {
     controlHorario: boolean;
+    modoRelevo: boolean;
   };
 }
 
@@ -134,6 +175,58 @@ export class VisitasRepository {
     });
   }
 
+  async findTramoActivo(pacienteServicioId: number): Promise<TramoActivo | null> {
+    return this.db.visita.findFirst({
+      where: {
+        pacienteServicioId,
+        estado: VISITA_ESTADO.INICIADA,
+      },
+      select: {
+        id: true,
+        pacienteServicioId: true,
+        prestadorId: true,
+        fechaInicio: true,
+        observaciones: true,
+      },
+    });
+  }
+
+  async findTramosActivosByPacienteServicioIds(
+    pacienteServicioIds: number[],
+  ): Promise<
+    Array<{
+      id: number;
+      pacienteServicioId: number;
+      prestadorId: number;
+      fechaInicio: Date;
+      prestador: { user: { nombre: string } };
+    }>
+  > {
+    if (pacienteServicioIds.length === 0) {
+      return [];
+    }
+
+    return this.db.visita.findMany({
+      where: {
+        pacienteServicioId: { in: pacienteServicioIds },
+        estado: VISITA_ESTADO.INICIADA,
+      },
+      select: {
+        id: true,
+        pacienteServicioId: true,
+        prestadorId: true,
+        fechaInicio: true,
+        prestador: {
+          select: {
+            user: {
+              select: { nombre: true },
+            },
+          },
+        },
+      },
+    });
+  }
+
   async findVisitasIniciadasByPacienteServicioIds(
     pacienteServicioIds: number[],
     prestadorId: number,
@@ -153,6 +246,48 @@ export class VisitasRepository {
         pacienteServicioId: true,
         fechaInicio: true,
         estado: true,
+      },
+    });
+  }
+
+  async findVisitasIniciadasParaCierre(filters: {
+    prestadorId?: number;
+    pacienteServicioId?: number;
+    visitaId?: number;
+  }): Promise<VisitaIniciadaParaCierre[]> {
+    const where: Prisma.VisitaWhereInput = {
+      estado: VISITA_ESTADO.INICIADA,
+      pacienteServicio: {
+        servicio: {
+          modoRelevo: false,
+        },
+      },
+      ...(filters.visitaId !== undefined ? { id: filters.visitaId } : {}),
+      ...(filters.prestadorId !== undefined ? { prestadorId: filters.prestadorId } : {}),
+      ...(filters.pacienteServicioId !== undefined
+        ? { pacienteServicioId: filters.pacienteServicioId }
+        : {}),
+    };
+
+    return this.db.visita.findMany({
+      where,
+      select: {
+        id: true,
+        pacienteServicioId: true,
+        prestadorId: true,
+        fechaInicio: true,
+        observaciones: true,
+        pacienteServicio: {
+          select: {
+            cantidadHoras: true,
+            servicio: {
+              select: {
+                controlHorario: true,
+                modoRelevo: true,
+              },
+            },
+          },
+        },
       },
     });
   }
@@ -182,11 +317,18 @@ export class VisitasRepository {
         modalidadCobro: true,
         periodoControl: true,
         cantidadPermitida: true,
+        cantidadHoras: true,
         fechaInicio: true,
         fechaFin: true,
+        coberturaDiariaInicio: true,
+        coberturaDiariaFin: true,
+        prestadoresAsignados: {
+          select: { prestadorId: true },
+        },
         servicio: {
           select: {
             controlHorario: true,
+            modoRelevo: true,
           },
         },
       },
@@ -291,6 +433,11 @@ export class VisitasRepository {
           estado: VISITA_ESTADO.FINALIZADA,
           fechaFin: data.fechaFin,
           tiempoMinutos: data.tiempoMinutos,
+          cierreAutomatico: data.cierreAutomatico ?? false,
+          cierrePorRelevo: data.cierrePorRelevo ?? false,
+          ...(data.prestadorRelevoId !== undefined
+            ? { prestadorRelevoId: data.prestadorRelevoId }
+            : {}),
           ...(data.observaciones !== null ? { observaciones: data.observaciones } : {}),
           finanzas: {
             create: {
@@ -317,10 +464,71 @@ export class VisitasRepository {
     });
   }
 
-  async cancelar(id: number): Promise<VisitaDetail> {
+  async relevarTramo(data: RelevarTramoData): Promise<{ anterior: VisitaDetail; actual: VisitaDetail }> {
+    return this.db.$transaction(async (tx) => {
+      await tx.visita.update({
+        where: { id: data.visitaAnteriorId },
+        data: {
+          estado: VISITA_ESTADO.FINALIZADA,
+          fechaFin: data.fechaRelevo,
+          tiempoMinutos: data.tiempoMinutosAnterior,
+          cierrePorRelevo: true,
+          prestadorRelevoId: data.prestadorId,
+          ...(data.observacionesAnterior !== null
+            ? { observaciones: data.observacionesAnterior }
+            : {}),
+          finanzas: {
+            create: {
+              modalidadCobro: data.finanzasAnterior.modalidadCobro,
+              tipoJornada: data.finanzasAnterior.tipoJornada,
+              tipoDia: data.finanzasAnterior.tipoDia,
+              valorUnitario: data.finanzasAnterior.valorUnitario,
+              valorAplicado: data.finanzasAnterior.valorAplicado,
+            },
+          },
+        },
+      });
+
+      const actualRow = await tx.visita.create({
+        data: {
+          pacienteServicioId: data.pacienteServicioId,
+          prestadorId: data.prestadorId,
+          estado: VISITA_ESTADO.INICIADA,
+          fechaInicio: data.fechaRelevo,
+          fechaFin: null,
+          tiempoMinutos: null,
+          observaciones: null,
+        },
+      });
+
+      const [anterior, actual] = await Promise.all([
+        tx.visita.findUnique({
+          where: { id: data.visitaAnteriorId },
+          include: visitaDetailInclude,
+        }),
+        tx.visita.findUnique({
+          where: { id: actualRow.id },
+          include: visitaDetailInclude,
+        }),
+      ]);
+
+      if (!anterior || !actual) {
+        throw new Error("Relevo realizado pero no se pudieron cargar las visitas");
+      }
+
+      return { anterior, actual };
+    });
+  }
+
+  async cancelar(id: number, observaciones?: string | null): Promise<VisitaDetail> {
     return this.db.visita.update({
       where: { id },
-      data: { estado: VISITA_ESTADO.CANCELADA },
+      data: {
+        estado: VISITA_ESTADO.CANCELADA,
+        ...(observaciones !== undefined && observaciones !== null
+          ? { observaciones }
+          : {}),
+      },
       include: visitaDetailInclude,
     });
   }
@@ -334,7 +542,21 @@ export class VisitasRepository {
   }
 
   async delete(id: number): Promise<void> {
-    await this.db.visita.delete({ where: { id } });
+    await this.db.$transaction(async (tx) => {
+      const consumos = await tx.visitaInsumo.findMany({
+        where: { visitaId: id },
+        select: { insumoId: true, cantidad: true },
+      });
+
+      for (const consumo of consumos) {
+        await tx.insumo.update({
+          where: { id: consumo.insumoId },
+          data: { stockActual: { increment: consumo.cantidad } },
+        });
+      }
+
+      await tx.visita.delete({ where: { id } });
+    });
   }
 
   async updateFinanzas(

@@ -12,6 +12,7 @@ import type { ModalidadCobro } from "../../shared/constants/modalidad-cobro.js";
 import type { PeriodoControl } from "../../shared/constants/periodo-control.js";
 import { mapServicioTarifaToDto } from "../servicio-tarifas/servicio-tarifas.mapper.js";
 import { mapTarifasPorModalidadCobro } from "../../shared/servicio/tarifasPorModalidad.js";
+import { buildReglasAsignacion } from "../../shared/servicio/reglasAsignacion.js";
 
 export function mapServicioToDto(servicio: Servicio): ServicioDto {
   return {
@@ -20,6 +21,8 @@ export function mapServicioToDto(servicio: Servicio): ServicioDto {
     descripcion: servicio.descripcion,
     estado: servicio.estado,
     controlHorario: servicio.controlHorario,
+    modoRelevo: servicio.modoRelevo,
+    reglasAsignacion: buildReglasAsignacion(servicio),
     createdAt: servicio.createdAt.toISOString(),
   };
 }

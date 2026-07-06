@@ -7,9 +7,11 @@ import type { VisitasService } from "./visitas.service.js";
 import {
   bulkUpdateVisitaFinanzasSchema,
   createVisitaSchema,
+  gestionarTramoAdminSchema,
   finalizarVisitaSchema,
   iniciarVisitaSchema,
   listVisitasQuerySchema,
+  relevarVisitaSchema,
   updateVisitaFinanzasSchema,
   updateVisitaSchema,
   visitaIdParamSchema,
@@ -17,7 +19,9 @@ import {
 } from "./visitas.validation.js";
 import type {
   BulkUpdateVisitaFinanzasResultDto,
+  GestionarTramoAdminDto,
   PaginatedVisitasDto,
+  RelevarVisitaDto,
   VisitaDto,
   VisitaPendienteDto,
 } from "./visitas.dto.js";
@@ -52,6 +56,15 @@ export class VisitasController {
     res.status(201).json({ success: true, data: visita });
   });
 
+  relevar = wrapAsync(async (req, res: Response<ApiSuccess<RelevarVisitaDto>>) => {
+    if (!req.auth) {
+      throw AppError.unauthorized();
+    }
+    const input = parseWithSchema(relevarVisitaSchema, req.body);
+    const result = await this.visitasService.relevar(req.auth, input);
+    res.status(201).json({ success: true, data: result });
+  });
+
   finalizar = wrapAsync(async (req, res: Response<ApiSuccess<VisitaDto>>) => {
     if (!req.auth) {
       throw AppError.unauthorized();
@@ -61,6 +74,17 @@ export class VisitasController {
     const visita = await this.visitasService.finalizar(req.auth, id, input);
     res.status(200).json({ success: true, data: visita });
   });
+
+  gestionarTramoAdmin = wrapAsync(
+    async (req, res: Response<ApiSuccess<GestionarTramoAdminDto>>) => {
+      if (!req.auth) {
+        throw AppError.unauthorized();
+      }
+      const input = parseWithSchema(gestionarTramoAdminSchema, req.body);
+      const result = await this.visitasService.gestionarTramoAdmin(req.auth, input);
+      res.status(200).json({ success: true, data: result });
+    },
+  );
 
   cancelar = wrapAsync(async (req, res: Response<ApiSuccess<VisitaDto>>) => {
     if (!req.auth) {

@@ -14,6 +14,14 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+const passwordResetLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: "Demasiados intentos. Probá de nuevo más tarde." },
+});
+
 const authRepository = new AuthRepository(prisma);
 const userRepository = new UserRepository(prisma);
 const authService = new AuthService(authRepository, userRepository);
@@ -23,7 +31,11 @@ export const authRouter = Router();
 
 authRouter.post("/register", authLimiter, authController.register);
 authRouter.post("/login", authLimiter, authController.login);
+authRouter.post("/forgot-password", passwordResetLimiter, authController.forgotPassword);
+authRouter.post("/reset-password", passwordResetLimiter, authController.resetPassword);
+authRouter.post("/refresh", authLimiter, authController.refresh);
 authRouter.post("/logout", authController.logout);
+authRouter.post("/logout-all", authenticate, authController.logoutAll);
 authRouter.get("/me", authenticate, authController.me);
 authRouter.patch("/me", authenticate, authController.updateMe);
 authRouter.post("/change-password", authLimiter, authenticate, authController.changePassword);

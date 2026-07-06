@@ -4,10 +4,23 @@ import { AppError } from "../../core/errors/AppError.js";
 import { wrapAsync } from "../../core/http/wrapAsync.js";
 import { parseWithSchema } from "../../core/validation/parseWithSchema.js";
 import type { AuthService } from "./auth.service.js";
-import { changePasswordSchema, loginSchema, registerSchema } from "./auth.validation.js";
+import {
+  changePasswordSchema,
+  forgotPasswordSchema,
+  loginSchema,
+  logoutSchema,
+  refreshTokenSchema,
+  registerSchema,
+  resetPasswordSchema,
+} from "./auth.validation.js";
 import { updateUserProfileSchema } from "../users/users.validation.js";
 import { extractBearerToken } from "../../shared/http/extractBearerToken.js";
-import type { AuthResponseDto, LogoutResponseDto, UserPublicDto } from "./auth.dto.js";
+import type {
+  AuthResponseDto,
+  LogoutResponseDto,
+  MessageResponseDto,
+  UserPublicDto,
+} from "./auth.dto.js";
 
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
@@ -50,12 +63,47 @@ export class AuthController {
     res.status(200).json({ success: true, data: result });
   });
 
+  forgotPassword = wrapAsync(async (req, res: Response<ApiSuccess<MessageResponseDto>>) => {
+    const input = parseWithSchema(forgotPasswordSchema, req.body);
+    const result = await this.authService.forgotPassword(input);
+    res.status(200).json({ success: true, data: result });
+  });
+
+  resetPassword = wrapAsync(async (req, res: Response<ApiSuccess<MessageResponseDto>>) => {
+    const input = parseWithSchema(resetPasswordSchema, req.body);
+    const result = await this.authService.resetPassword(input);
+    res.status(200).json({ success: true, data: result });
+  });
+
+  refresh = wrapAsync(async (req, res: Response<ApiSuccess<AuthResponseDto>>) => {
+    const input = parseWithSchema(refreshTokenSchema, req.body);
+    const result = await this.authService.refresh(input);
+    res.status(200).json({ success: true, data: result });
+  });
+
   logout = wrapAsync(async (req, res: Response<ApiSuccess<LogoutResponseDto>>) => {
+    const input = parseWithSchema(logoutSchema, req.body ?? {});
+    const token = extractBearerToken(req.headers.authorization);
+
+    if (!token && !input.refreshToken) {
+      throw AppError.unauthorized("Token no enviado");
+    }
+
+    const result = await this.authService.logout(token, input);
+    res.status(200).json({ success: true, data: result });
+  });
+
+  logoutAll = wrapAsync(async (req, res: Response<ApiSuccess<LogoutResponseDto>>) => {
+    if (!req.auth) {
+      throw AppError.unauthorized();
+    }
+
     const token = extractBearerToken(req.headers.authorization);
     if (!token) {
       throw AppError.unauthorized("Token no enviado");
     }
-    const result = await this.authService.logout(token);
+
+    const result = await this.authService.logoutAll(req.auth.userId, token);
     res.status(200).json({ success: true, data: result });
   });
 }

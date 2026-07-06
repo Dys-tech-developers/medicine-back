@@ -7,7 +7,7 @@ Backend del **sistema médico de prestaciones domiciliarias**: API REST con **No
 ## Cómo arranca la aplicación
 
 1. `**src/server.ts`** carga variables con `dotenv` y lee el puerto desde `src/config/env.ts` (validado con Zod). Si falta alguna variable obligatoria o es inválida, el proceso termina con error claro.
-2. Se construye la app con `**src/app.ts**` (`createApp()`): middlewares globales, montaje de rutas y manejadores de error al final.
+2. Se construye la app con `**src/app.ts`** (`createApp()`): middlewares globales, montaje de rutas y manejadores de error al final.
 3. Se crea un servidor HTTP (`node:http`) que escucha en `**PORT**` (por defecto `3000`).
 
 ```mermaid
@@ -56,16 +56,16 @@ Roles sembrados por defecto (`prisma/seed.ts`): **ADMIN**, **OPERADOR**, **PREST
 
 ### Usuarios de prueba (solo desarrollo)
 
-Se crean al ejecutar `**npx prisma db seed`** (o `npm run db:seed`). Están definidos en `**prisma/seed.ts**`.
+Se crean al ejecutar `**npx prisma db seed`** (o `npm run db:seed`). Están definidos en `**prisma/seed.ts`**.
 
 
-| Email                        | Rol       | Contraseña (todas igual) |
-| ---------------------------- | --------- | ------------------------ |
-| `admin@medicine.local`       | ADMIN     | `MedicineTest1!`         |
-| `operador@medicine.local`    | OPERADOR  | `MedicineTest1!`         |
-| `prestador@medicine.local`   | PRESTADOR | `MedicineTest1!`         |
-| `prestador2@medicine.local`  | PRESTADOR | `MedicineTest1!`         |
-| `prestador3@medicine.local`  | PRESTADOR | `MedicineTest1!`         |
+| Email                       | Rol       | Contraseña (todas igual) |
+| --------------------------- | --------- | ------------------------ |
+| `admin@medicine.local`      | ADMIN     | `MedicineTest1!`         |
+| `operador@medicine.local`   | OPERADOR  | `MedicineTest1!`         |
+| `prestador@medicine.local`  | PRESTADOR | `MedicineTest1!`         |
+| `prestador2@medicine.local` | PRESTADOR | `MedicineTest1!`         |
+| `prestador3@medicine.local` | PRESTADOR | `MedicineTest1!`         |
 
 
 Login: `POST /api/v1/auth/login` con `{ "email": "...", "password": "MedicineTest1!" }`.
@@ -73,7 +73,7 @@ Login: `POST /api/v1/auth/login` con `{ "email": "...", "password": "MedicineTes
 El seed de catálogo (`npm run db:seed`) también crea:
 
 - **3 obras sociales** (SIN-OS, OSDE, Swiss Medical)
-- **3 servicios** con **tarifas** (`por_servicio` × jornada × día hábil/sábado/domingo)
+- **3 servicios** con **tarifas** (`por_servicio` × jornada × día hábil/no hábil)
 - **3 prestadores** con perfil en `prestadores` y vínculo `prestador_servicios`
 - **5 pacientes** (`PAC-000001` … `PAC-000005`) con historia clínica y asignación activa a un servicio
 - **Insumos** de demo
@@ -87,7 +87,7 @@ Visitas de mayo (opcional, para reportes): `npm run db:seed:mayo-visitas`.
 Un **prestador** es la combinación de:
 
 1. `**users`** — cuenta (nombre, email, contraseña, `estado` para login).
-2. `**user_roles**` — rol `PRESTADOR`.
+2. `**user_roles`** — rol `PRESTADOR`.
 3. `**prestadores**` — perfil profesional (`telefono`, `lugar_residencia`, `documento`, `matricula`, `cuit`, `estado` del prestador).
 
 Relación: `prestadores.user_id` → `users.id` (1:1).
@@ -125,14 +125,14 @@ Para **producción** con PostgreSQL habrá que volver a `provider = "postgresql"
 ## Variables de entorno
 
 
-| Variable             | Descripción                                                        |
-| -------------------- | ------------------------------------------------------------------ |
-| `NODE_ENV`           | `development` | `test` | `production` (por defecto `development`). |
-| `PORT`               | Puerto HTTP (por defecto `3000`).                                  |
-| `DATABASE_URL`       | SQLite: `file:./dev.db` (archivo bajo `prisma/`).                  |
-| `JWT_SECRET`         | Secreto de firma; **mínimo 32 caracteres**.                        |
-| `JWT_EXPIRES_IN`     | Caducidad del access token (ej. `8h`).                             |
-| `BCRYPT_SALT_ROUNDS` | Entre `10` y `15` (por defecto `12`).                              |
+| Variable             | Descripción                                       |
+| -------------------- | ------------------------------------------------- |
+| `NODE_ENV`           | `development`                                     |
+| `PORT`               | Puerto HTTP (por defecto `3000`).                 |
+| `DATABASE_URL`       | SQLite: `file:./dev.db` (archivo bajo `prisma/`). |
+| `JWT_SECRET`         | Secreto de firma; **mínimo 32 caracteres**.       |
+| `JWT_EXPIRES_IN`     | Caducidad del access token (ej. `8h`).            |
+| `BCRYPT_SALT_ROUNDS` | Entre `10` y `15` (por defecto `12`).             |
 
 
 Copiá la plantilla: `cp .env.example .env` y completá valores reales.
@@ -173,78 +173,78 @@ npm start
 Base URL: `http://localhost:<PORT>`
 
 
-| Método | Ruta                                              | Auth   | Roles                      | Descripción                                                                           |
-| ------ | ------------------------------------------------- | ------ | -------------------------- | ------------------------------------------------------------------------------------- |
-| GET    | `/health`                                         | No     | —                          | Estado del servicio.                                                                  |
-| POST   | `/api/v1/auth/register`                           | No     | —                          | Alta de usuario (rol OPERADOR).                                                       |
-| POST   | `/api/v1/auth/login`                              | No     | —                          | Login; devuelve `accessToken` y datos públicos del usuario.                           |
-| POST   | `/api/v1/auth/logout`                             | Bearer | —                          | Cierra sesión: invalida el token en servidor.                                         |
-| GET    | `/api/v1/auth/me`                                 | Bearer | —                          | Perfil del usuario autenticado.                                                       |
-| PATCH  | `/api/v1/auth/me`                                 | Bearer | —                          | Actualiza `nombre` y/o `email` del usuario autenticado.                               |
-| POST   | `/api/v1/auth/change-password`                    | Bearer | —                          | Cambia contraseña (`currentPassword`, `newPassword`). Rate limit.                   |
-| GET    | `/api/v1/prestadores`                             | Bearer | ADMIN, OPERADOR            | Listado paginado; filtros `servicioId`, `estado`; incluye `servicios[]` habilitados.   |
-| GET    | `/api/v1/prestadores/:id`                         | Bearer | ADMIN, OPERADOR            | Detalle con `servicios[]` habilitados (`prestador_servicios`).                          |
+| Método | Ruta                                              | Auth   | Roles                      | Descripción                                                                                  |
+| ------ | ------------------------------------------------- | ------ | -------------------------- | -------------------------------------------------------------------------------------------- |
+| GET    | `/health`                                         | No     | —                          | Estado del servicio.                                                                         |
+| POST   | `/api/v1/auth/register`                           | No     | —                          | Alta de usuario (rol OPERADOR).                                                              |
+| POST   | `/api/v1/auth/login`                              | No     | —                          | Login; devuelve `accessToken` y datos públicos del usuario.                                  |
+| POST   | `/api/v1/auth/logout`                             | Bearer | —                          | Cierra sesión: invalida el token en servidor.                                                |
+| GET    | `/api/v1/auth/me`                                 | Bearer | —                          | Perfil del usuario autenticado.                                                              |
+| PATCH  | `/api/v1/auth/me`                                 | Bearer | —                          | Actualiza `nombre` y/o `email` del usuario autenticado.                                      |
+| POST   | `/api/v1/auth/change-password`                    | Bearer | —                          | Cambia contraseña (`currentPassword`, `newPassword`). Rate limit.                            |
+| GET    | `/api/v1/prestadores`                             | Bearer | ADMIN, OPERADOR            | Listado paginado; filtros `servicioId`, `estado`; incluye `servicios[]` habilitados.         |
+| GET    | `/api/v1/prestadores/:id`                         | Bearer | ADMIN, OPERADOR            | Detalle con `servicios[]` habilitados (`prestador_servicios`).                               |
 | GET    | `/api/v1/prestadores/me`                          | Bearer | PRESTADOR                  | Perfil del prestador autenticado (mismo ítem que el listado). 404 sin fila en `prestadores`. |
-| POST   | `/api/v1/prestadores`                             | Bearer | ADMIN                      | Alta: `User` PRESTADOR + perfil; body opcional `servicioIds[]` (habilitación).        |
-| PUT    | `/api/v1/prestadores/:id/servicios`                 | Bearer | ADMIN                      | Reemplaza servicios habilitados: `{ "servicioIds": number[] }` (puede ser `[]`).        |
-| GET    | `/api/v1/insumos`                                 | Bearer | ADMIN, OPERADOR, PRESTADOR | Listado paginado (`?bajoStock=true` opcional).                                        |
-| GET    | `/api/v1/insumos/:id`                             | Bearer | ADMIN, OPERADOR, PRESTADOR | Detalle de insumo.                                                                    |
-| POST   | `/api/v1/insumos`                                 | Bearer | ADMIN                      | Alta de insumo.                                                                       |
-| PATCH  | `/api/v1/insumos/:id`                             | Bearer | ADMIN                      | Actualización de insumo / stock manual.                                               |
-| DELETE | `/api/v1/insumos/:id`                             | Bearer | ADMIN                      | Baja de insumo (falla si tiene consumos en visitas).                                  |
-| GET    | `/api/v1/obras-sociales`                          | Bearer | ADMIN, OPERADOR, PRESTADOR | Catálogo de obras sociales (`search`, `estado` opcionales).                           |
-| GET    | `/api/v1/obras-sociales/:id`                      | Bearer | ADMIN, OPERADOR, PRESTADOR | Detalle de obra social.                                                               |
-| POST   | `/api/v1/obras-sociales`                          | Bearer | ADMIN                      | Alta (`nombre`, `codigo`, `estado`).                                                  |
-| PATCH  | `/api/v1/obras-sociales/:id`                      | Bearer | ADMIN                      | Actualización parcial.                                                                |
-| DELETE | `/api/v1/obras-sociales/:id`                      | Bearer | ADMIN                      | Baja (falla si tiene pacientes).                                                      |
-| GET    | `/api/v1/pacientes`                               | Bearer | ADMIN, OPERADOR, PRESTADOR | Listado paginado (`page`, `pageSize`).                                                |
-| POST   | `/api/v1/pacientes`                               | Bearer | ADMIN, OPERADOR            | Alta con `obraSocialId`; genera `codigoQr` y `qrDataUrl`.                             |
-| GET    | `/api/v1/pacientes/:id`                           | Bearer | ADMIN, OPERADOR, PRESTADOR | Detalle + QR + `servicios` asignados con `tarifas` por modalidad.                     |
-| GET    | `/api/v1/pacientes/qr/:codigoQr`                  | Bearer | ADMIN, OPERADOR, PRESTADOR | Búsqueda por escaneo (`PAC-000001`).                                                  |
-| PATCH  | `/api/v1/pacientes/:id`                           | Bearer | ADMIN, OPERADOR            | Actualización parcial (`codigoQr` no editable).                                       |
-| DELETE | `/api/v1/pacientes/:id`                           | Bearer | ADMIN                      | Baja (falla si tiene visitas o asignaciones paciente-servicio).                       |
-| GET    | `/api/v1/historias-clinicas`                      | Bearer | ADMIN, OPERADOR, PRESTADOR | Listado paginado (`page`, `pageSize`, `pacienteId` opcional).                         |
-| GET    | `/api/v1/historias-clinicas/paciente/:pacienteId` | Bearer | ADMIN, OPERADOR, PRESTADOR | Historia del paciente con `evoluciones` (relación 1:1).                               |
-| GET    | `/api/v1/historias-clinicas/:id`                  | Bearer | ADMIN, OPERADOR, PRESTADOR | Detalle con resumen del paciente y `evoluciones`.                                     |
-| POST   | `/api/v1/historias-clinicas`                      | Bearer | ADMIN, OPERADOR            | Alta (un paciente solo puede tener una).                                              |
-| PATCH  | `/api/v1/historias-clinicas/:id`                  | Bearer | ADMIN, OPERADOR            | Actualización parcial.                                                                |
-| DELETE | `/api/v1/historias-clinicas/:id`                  | Bearer | ADMIN                      | Baja.                                                                                 |
-| GET    | `/api/v1/evoluciones-clinicas`                    | Bearer | ADMIN, OPERADOR, PRESTADOR | Listado paginado (`historiaClinicaId` opcional).                                      |
-| GET    | `/api/v1/evoluciones-clinicas/:id`                | Bearer | ADMIN, OPERADOR, PRESTADOR | Detalle.                                                                              |
-| POST   | `/api/v1/evoluciones-clinicas`                    | Bearer | ADMIN, OPERADOR            | Alta de evolución (misma política que historias clínicas).                            |
-| PATCH  | `/api/v1/evoluciones-clinicas/:id`                | Bearer | ADMIN, OPERADOR            | Actualización parcial.                                                                |
-| DELETE | `/api/v1/evoluciones-clinicas/:id`                | Bearer | ADMIN                      | Baja.                                                                                 |
-| GET    | `/api/v1/servicios`                               | Bearer | ADMIN, OPERADOR, PRESTADOR | Catálogo: `tarifas`, `pacientes` (cada uno con sus `tarifas` según `modalidadCobro`). |
-| GET    | `/api/v1/servicios/:id`                           | Bearer | ADMIN, OPERADOR, PRESTADOR | Igual que ítem del listado (servicio + tarifas + pacientes con tarifas).              |
-| POST   | `/api/v1/servicios`                               | Bearer | ADMIN, OPERADOR            | Alta de servicio + `tarifas` (mín. 1) en una transacción.                             |
-| PATCH  | `/api/v1/servicios/:id`                           | Bearer | ADMIN, OPERADOR            | Actualización de nombre y/o descripción.                                              |
-| PATCH  | `/api/v1/servicios/:id/estado`                    | Bearer | ADMIN, OPERADOR            | Activar/desactivar: `{ "estado": true | false }`.                                     |
-| DELETE | `/api/v1/servicios/:id`                           | Bearer | ADMIN                      | Eliminación (falla si está asignado a pacientes).                                     |
-| GET    | `/api/v1/servicios/:servicioId/tarifas`           | Bearer | ADMIN, OPERADOR, PRESTADOR | Tarifas del servicio (modalidad, jornada, día, valor).                                |
-| POST   | `/api/v1/servicios/:servicioId/tarifas`           | Bearer | ADMIN                      | Alta de tarifa.                                                                       |
-| PATCH  | `/api/v1/servicios/:servicioId/tarifas/:id`       | Bearer | ADMIN                      | Actualización de tarifa.                                                              |
-| DELETE | `/api/v1/servicios/:servicioId/tarifas/:id`       | Bearer | ADMIN                      | Baja de tarifa.                                                                       |
-| GET    | `/api/v1/paciente-servicios`                      | Bearer | ADMIN, OPERADOR, PRESTADOR | Asignaciones paciente↔servicio (`pacienteId`, `servicioId`, `estado`).                |
-| GET    | `/api/v1/paciente-servicios/:id`                  | Bearer | ADMIN, OPERADOR, PRESTADOR | Detalle con paciente, servicio y prestador asignado.                                  |
-| POST   | `/api/v1/paciente-servicios`                      | Bearer | ADMIN, OPERADOR            | Alta (un servicio por registro; prestador opcional, frecuencia y modalidad de cobro).   |
-| PATCH  | `/api/v1/paciente-servicios/:id`                  | Bearer | ADMIN, OPERADOR            | Actualización parcial.                                                                |
-| DELETE | `/api/v1/paciente-servicios/:id`                  | Bearer | ADMIN                      | Baja (falla si tiene visitas).                                                        |
-| GET    | `/api/v1/visitas`                                 | Bearer | ADMIN, OPERADOR, PRESTADOR | Listado paginado (prestador solo ve las suyas).                                       |
-| GET    | `/api/v1/visitas/:id`                             | Bearer | ADMIN, OPERADOR, PRESTADOR | Detalle con paciente, prestador e insumos.                                            |
-| POST   | `/api/v1/visitas`                                 | Bearer | ADMIN, PRESTADOR           | Alta de visita.                                                                       |
-| PATCH  | `/api/v1/visitas/:id`                             | Bearer | ADMIN, PRESTADOR           | Actualización (prestador: fecha, tiempo, observaciones).                              |
-| PATCH  | `/api/v1/visitas/:id/finanzas`                      | Bearer | ADMIN                      | Marca `facturado` y/o `pagado` (parcial; al menos un campo en el body).                |
-| PATCH  | `/api/v1/visitas/finanzas/bulk`                     | Bearer | ADMIN                      | Igual que el anterior, para hasta 200 visitas en una transacción.                     |
-| DELETE | `/api/v1/visitas/:id`                             | Bearer | ADMIN, PRESTADOR           | Baja (prestador solo las propias).                                                    |
-| GET    | `/api/v1/visitas/:visitaId/insumos`               | Bearer | ADMIN, OPERADOR, PRESTADOR | Insumos registrados en una visita.                                                    |
-| POST   | `/api/v1/visitas/:visitaId/insumos`               | Bearer | ADMIN, PRESTADOR           | Registra consumo y **descuenta stock** (transacción).                                 |
-| GET    | `/api/v1/reportes/visitas`                        | Bearer | ADMIN, OPERADOR            | Listado paginado de visitas con estado de cobro (vista finanzas).                     |
-| GET    | `/api/v1/reportes/prestadores`                    | Bearer | ADMIN, OPERADOR            | Agregado por prestador con montos por estado de cobro.                                |
-| GET    | `/api/v1/reportes/servicios`                      | Bearer | ADMIN, OPERADOR            | Agregado por servicio con montos por estado de cobro.                                 |
-| GET    | `/api/v1/users`                                   | Bearer | ADMIN, OPERADOR            | Listado paginado (`page`, `pageSize`).                                                |
-| GET    | `/api/v1/users/:id`                               | Bearer | —                          | Detalle: **ADMIN** o el **mismo usuario** (`:id`).                                    |
-| PATCH  | `/api/v1/users/:id`                               | Bearer | ADMIN                      | Actualiza `nombre` y/o `email` de cualquier usuario.                                  |
-| PATCH  | `/api/v1/users/:id/estado`                        | Bearer | ADMIN                      | Body JSON `{ "estado": true | false }`.                                               |
+| POST   | `/api/v1/prestadores`                             | Bearer | ADMIN                      | Alta: `User` PRESTADOR + perfil; body opcional `servicioIds[]` (habilitación).               |
+| PUT    | `/api/v1/prestadores/:id/servicios`               | Bearer | ADMIN                      | Reemplaza servicios habilitados: `{ "servicioIds": number[] }` (puede ser `[]`).             |
+| GET    | `/api/v1/insumos`                                 | Bearer | ADMIN, OPERADOR, PRESTADOR | Listado paginado (`?bajoStock=true` opcional).                                               |
+| GET    | `/api/v1/insumos/:id`                             | Bearer | ADMIN, OPERADOR, PRESTADOR | Detalle de insumo.                                                                           |
+| POST   | `/api/v1/insumos`                                 | Bearer | ADMIN                      | Alta de insumo.                                                                              |
+| PATCH  | `/api/v1/insumos/:id`                             | Bearer | ADMIN                      | Actualización de insumo / stock manual.                                                      |
+| DELETE | `/api/v1/insumos/:id`                             | Bearer | ADMIN                      | Baja de insumo (falla si tiene consumos en visitas).                                         |
+| GET    | `/api/v1/obras-sociales`                          | Bearer | ADMIN, OPERADOR, PRESTADOR | Catálogo de obras sociales (`search`, `estado` opcionales).                                  |
+| GET    | `/api/v1/obras-sociales/:id`                      | Bearer | ADMIN, OPERADOR, PRESTADOR | Detalle de obra social.                                                                      |
+| POST   | `/api/v1/obras-sociales`                          | Bearer | ADMIN                      | Alta (`nombre`, `codigo`, `estado`).                                                         |
+| PATCH  | `/api/v1/obras-sociales/:id`                      | Bearer | ADMIN                      | Actualización parcial.                                                                       |
+| DELETE | `/api/v1/obras-sociales/:id`                      | Bearer | ADMIN                      | Baja (falla si tiene pacientes).                                                             |
+| GET    | `/api/v1/pacientes`                               | Bearer | ADMIN, OPERADOR, PRESTADOR | Listado paginado (`page`, `pageSize`).                                                       |
+| POST   | `/api/v1/pacientes`                               | Bearer | ADMIN, OPERADOR            | Alta con `obraSocialId`; genera `codigoQr` y `qrDataUrl`.                                    |
+| GET    | `/api/v1/pacientes/:id`                           | Bearer | ADMIN, OPERADOR, PRESTADOR | Detalle + QR + `servicios` asignados con `tarifas` por modalidad.                            |
+| GET    | `/api/v1/pacientes/qr/:codigoQr`                  | Bearer | ADMIN, OPERADOR, PRESTADOR | Búsqueda por escaneo (`PAC-000001`).                                                         |
+| PATCH  | `/api/v1/pacientes/:id`                           | Bearer | ADMIN, OPERADOR            | Actualización parcial (`codigoQr` no editable).                                              |
+| DELETE | `/api/v1/pacientes/:id`                           | Bearer | ADMIN                      | Baja (falla si tiene visitas o asignaciones paciente-servicio).                              |
+| GET    | `/api/v1/historias-clinicas`                      | Bearer | ADMIN, OPERADOR, PRESTADOR | Listado paginado (`page`, `pageSize`, `pacienteId` opcional).                                |
+| GET    | `/api/v1/historias-clinicas/paciente/:pacienteId` | Bearer | ADMIN, OPERADOR, PRESTADOR | Historia del paciente con `evoluciones` (relación 1:1).                                      |
+| GET    | `/api/v1/historias-clinicas/:id`                  | Bearer | ADMIN, OPERADOR, PRESTADOR | Detalle con resumen del paciente y `evoluciones`.                                            |
+| POST   | `/api/v1/historias-clinicas`                      | Bearer | ADMIN, OPERADOR            | Alta (un paciente solo puede tener una).                                                     |
+| PATCH  | `/api/v1/historias-clinicas/:id`                  | Bearer | ADMIN, OPERADOR            | Actualización parcial.                                                                       |
+| DELETE | `/api/v1/historias-clinicas/:id`                  | Bearer | ADMIN                      | Baja.                                                                                        |
+| GET    | `/api/v1/evoluciones-clinicas`                    | Bearer | ADMIN, OPERADOR, PRESTADOR | Listado paginado (`historiaClinicaId` opcional).                                             |
+| GET    | `/api/v1/evoluciones-clinicas/:id`                | Bearer | ADMIN, OPERADOR, PRESTADOR | Detalle.                                                                                     |
+| POST   | `/api/v1/evoluciones-clinicas`                    | Bearer | ADMIN, OPERADOR            | Alta de evolución (misma política que historias clínicas).                                   |
+| PATCH  | `/api/v1/evoluciones-clinicas/:id`                | Bearer | ADMIN, OPERADOR            | Actualización parcial.                                                                       |
+| DELETE | `/api/v1/evoluciones-clinicas/:id`                | Bearer | ADMIN                      | Baja.                                                                                        |
+| GET    | `/api/v1/servicios`                               | Bearer | ADMIN, OPERADOR, PRESTADOR | Catálogo: `tarifas`, `pacientes` (cada uno con sus `tarifas` según `modalidadCobro`).        |
+| GET    | `/api/v1/servicios/:id`                           | Bearer | ADMIN, OPERADOR, PRESTADOR | Igual que ítem del listado (servicio + tarifas + pacientes con tarifas).                     |
+| POST   | `/api/v1/servicios`                               | Bearer | ADMIN, OPERADOR            | Alta de servicio + `tarifas` (mín. 1) en una transacción.                                    |
+| PATCH  | `/api/v1/servicios/:id`                           | Bearer | ADMIN, OPERADOR            | Actualización de nombre y/o descripción.                                                     |
+| PATCH  | `/api/v1/servicios/:id/estado`                    | Bearer | ADMIN, OPERADOR            | Activar/desactivar: `{ "estado": true                                                        |
+| DELETE | `/api/v1/servicios/:id`                           | Bearer | ADMIN                      | Eliminación (falla si está asignado a pacientes).                                            |
+| GET    | `/api/v1/servicios/:servicioId/tarifas`           | Bearer | ADMIN, OPERADOR, PRESTADOR | Tarifas del servicio (modalidad, jornada, día, valor).                                       |
+| POST   | `/api/v1/servicios/:servicioId/tarifas`           | Bearer | ADMIN                      | Alta de tarifa.                                                                              |
+| PATCH  | `/api/v1/servicios/:servicioId/tarifas/:id`       | Bearer | ADMIN                      | Actualización de tarifa.                                                                     |
+| DELETE | `/api/v1/servicios/:servicioId/tarifas/:id`       | Bearer | ADMIN                      | Baja de tarifa.                                                                              |
+| GET    | `/api/v1/paciente-servicios`                      | Bearer | ADMIN, OPERADOR, PRESTADOR | Asignaciones paciente↔servicio (`pacienteId`, `servicioId`, `estado`).                       |
+| GET    | `/api/v1/paciente-servicios/:id`                  | Bearer | ADMIN, OPERADOR, PRESTADOR | Detalle con paciente, servicio y prestador asignado.                                         |
+| POST   | `/api/v1/paciente-servicios`                      | Bearer | ADMIN, OPERADOR            | Alta (un servicio por registro; prestador opcional, frecuencia y modalidad de cobro).        |
+| PATCH  | `/api/v1/paciente-servicios/:id`                  | Bearer | ADMIN, OPERADOR            | Actualización parcial.                                                                       |
+| DELETE | `/api/v1/paciente-servicios/:id`                  | Bearer | ADMIN                      | Baja (falla si tiene visitas).                                                               |
+| GET    | `/api/v1/visitas`                                 | Bearer | ADMIN, OPERADOR, PRESTADOR | Listado paginado (prestador solo ve las suyas).                                              |
+| GET    | `/api/v1/visitas/:id`                             | Bearer | ADMIN, OPERADOR, PRESTADOR | Detalle con paciente, prestador e insumos.                                                   |
+| POST   | `/api/v1/visitas`                                 | Bearer | ADMIN, PRESTADOR           | Alta de visita.                                                                              |
+| PATCH  | `/api/v1/visitas/:id`                             | Bearer | ADMIN, PRESTADOR           | Actualización (prestador: fecha, tiempo, observaciones).                                     |
+| PATCH  | `/api/v1/visitas/:id/finanzas`                    | Bearer | ADMIN                      | Marca `facturado` y/o `pagado` (parcial; al menos un campo en el body).                      |
+| PATCH  | `/api/v1/visitas/finanzas/bulk`                   | Bearer | ADMIN                      | Igual que el anterior, para hasta 200 visitas en una transacción.                            |
+| DELETE | `/api/v1/visitas/:id`                             | Bearer | ADMIN                      | Baja definitiva (ver reglas más abajo).                                                      |
+| GET    | `/api/v1/visitas/:visitaId/insumos`               | Bearer | ADMIN, OPERADOR, PRESTADOR | Insumos registrados en una visita.                                                           |
+| POST   | `/api/v1/visitas/:visitaId/insumos`               | Bearer | ADMIN, PRESTADOR           | Registra consumo y **descuenta stock** (transacción).                                        |
+| GET    | `/api/v1/reportes/visitas`                        | Bearer | ADMIN, OPERADOR            | Listado paginado de visitas con estado de cobro (vista finanzas).                            |
+| GET    | `/api/v1/reportes/prestadores`                    | Bearer | ADMIN, OPERADOR            | Agregado por prestador con montos por estado de cobro.                                       |
+| GET    | `/api/v1/reportes/servicios`                      | Bearer | ADMIN, OPERADOR            | Agregado por servicio con montos por estado de cobro.                                        |
+| GET    | `/api/v1/users`                                   | Bearer | ADMIN, OPERADOR            | Listado paginado (`page`, `pageSize`).                                                       |
+| GET    | `/api/v1/users/:id`                               | Bearer | —                          | Detalle: **ADMIN** o el **mismo usuario** (`:id`).                                           |
+| PATCH  | `/api/v1/users/:id`                               | Bearer | ADMIN                      | Actualiza `nombre` y/o `email` de cualquier usuario.                                         |
+| PATCH  | `/api/v1/users/:id/estado`                        | Bearer | ADMIN                      | Body JSON `{ "estado": true                                                                  |
 
 
 Login y registro tienen **rate limit** propio (ventana de 15 minutos) además del límite global en `app.ts`.
@@ -273,7 +273,7 @@ Todas las respuestas exitosas usan `{ "success": true, "data": … }`. Los tipos
 | `frecuenciaTipo`                        | `diaria`, `semanal`, `mensual`, `por_horas` |
 | `estado` (asignación paciente↔servicio) | `activa`, `suspendida`, `finalizada`        |
 | `tipoJornada` (tarifa)                  | `diurno`, `nocturno`                        |
-| `tipoDia` (tarifa)                      | `habil`, `sabado`, `domingo`, `feriado`     |
+| `tipoDia` (tarifa)                      | `habil`, `no_habil`                         |
 | `sexo` (paciente)                       | `M`, `F`, `X`                               |
 
 
@@ -297,10 +297,12 @@ Todas las respuestas exitosas usan `{ "success": true, "data": … }`. Los tipos
 
 Body (al menos un campo):
 
-| Campo    | Tipo   | Descripción        |
-| -------- | ------ | ------------------ |
-| `nombre` | string | 1–100 caracteres   |
-| `email`  | string | Email válido       |
+
+| Campo    | Tipo   | Descripción      |
+| -------- | ------ | ---------------- |
+| `nombre` | string | 1–100 caracteres |
+| `email`  | string | Email válido     |
+
 
 `data`: **Usuario público** actualizado.
 
@@ -310,10 +312,12 @@ Errores: **409** si el email ya existe.
 
 Body:
 
-| Campo              | Tipo   | Descripción                          |
-| ------------------ | ------ | ------------------------------------ |
-| `currentPassword`  | string | Contraseña actual                    |
-| `newPassword`      | string | Mín. 10 caracteres, máx. 72 (bcrypt) |
+
+| Campo             | Tipo   | Descripción                          |
+| ----------------- | ------ | ------------------------------------ |
+| `currentPassword` | string | Contraseña actual                    |
+| `newPassword`     | string | Mín. 10 caracteres, máx. 72 (bcrypt) |
+
 
 `data`: `{ "message": "Contraseña actualizada correctamente" }`.
 
@@ -351,38 +355,43 @@ Relación **muchos-a-muchos** con servicios vía `prestador_servicios`: un prest
 
 #### `GET /api/v1/prestadores`
 
-Query: `page`, `pageSize`, `servicioId` (solo prestadores habilitados para ese servicio), `estado` (`true` \| `false`, perfil prestador). Opcionales para estado de cuenta (si se envía al menos uno, cada ítem incluye `estadoCuenta` y la respuesta trae `meta`):
+Query: `page`, `pageSize`, `servicioId` (solo prestadores habilitados para ese servicio), `estado` (`true`  `false`, perfil prestador). Opcionales para estado de cuenta (si se envía al menos uno, cada ítem incluye `estadoCuenta` y la respuesta trae `meta`):
 
-| Parámetro    | Tipo   | Descripción                                              |
-| ------------ | ------ | -------------------------------------------------------- |
-| `periodo`    | string | `diario` \| `semanal` \| `mensual` — rango del período actual. |
+
+| Parámetro    | Tipo   | Descripción                                                    |
+| ------------ | ------ | -------------------------------------------------------------- |
+| `periodo`    | string | `diario` | `semanal` | `mensual` — rango del período actual.   |
 | `fechaDesde` | ISO    | Visitas con `fechaInicio` ≥ valor (prioridad sobre `periodo`). |
-| `fechaHasta` | ISO    | Visitas con `fechaInicio` ≤ valor.                       |
+| `fechaHasta` | ISO    | Visitas con `fechaInicio` ≤ valor.                             |
+
 
 `data`: **Paginado**; cada ítem:
 
 
-| Atributo                                                                             | Tipo    | Notas                      |
-| ------------------------------------------------------------------------------------ | ------- | -------------------------- |
-| `id`                                                                                 | number  | ID del prestador           |
-| `userId`                                                                             | number  | ID del usuario             |
-| `nombre`, `email`                                                                    | string  | Desde `users`              |
-| `telefono`, `lugarResidencia`, `documento`, `matricula`, `cuit`, `cbu`, `regimenIva` | string  | Perfil profesional         |
-| `estado`                                                                             | boolean | Perfil prestador (visitas) |
-| `usuarioEstado`                                                                      | boolean | `User.estado` (login)      |
-| `createdAt`, `updatedAt`                                                             | string  | ISO                        |
+| Atributo                                                                             | Tipo    | Notas                                                             |
+| ------------------------------------------------------------------------------------ | ------- | ----------------------------------------------------------------- |
+| `id`                                                                                 | number  | ID del prestador                                                  |
+| `userId`                                                                             | number  | ID del usuario                                                    |
+| `nombre`, `email`                                                                    | string  | Desde `users`                                                     |
+| `telefono`, `lugarResidencia`, `documento`, `matricula`, `cuit`, `cbu`, `regimenIva` | string  | Perfil profesional                                                |
+| `estado`                                                                             | boolean | Perfil prestador (visitas)                                        |
+| `usuarioEstado`                                                                      | boolean | `User.estado` (login)                                             |
+| `createdAt`, `updatedAt`                                                             | string  | ISO                                                               |
 | `servicios`                                                                          | array   | `{ id, nombre, estado }[]` — habilitados en `prestador_servicios` |
-| `estadoCuenta`                                                                       | object  | Solo con filtros de período (ver abajo). |
+| `estadoCuenta`                                                                       | object  | Solo con filtros de período (ver abajo).                          |
 
-**`estadoCuenta`** (mismo criterio de fechas que reportes; montos desde `visita_finanzas.valor_aplicado`):
 
-| Campo              | Tipo   | Descripción                                                                 |
-| ------------------ | ------ | ----------------------------------------------------------------------------- |
-| `cantidadVisitas`  | number | Visitas del prestador en el período.                                          |
-| `horasTrabajadas`  | number | Suma de `tiempoMinutos` convertida a horas.                                    |
-| `finanzas`         | object | Mismo **resumen financiero** que en reportes (`totalGenerado`, `pagado`, etc.). |
-| `montoPagado`      | string | Igual a `finanzas.pagado`.                                                    |
-| `montoPendiente`   | string | `totalGenerado − pagado` (todo lo no pagado en el período).                    |
+`**estadoCuenta`** (mismo criterio de fechas que reportes; montos desde `visita_finanzas.valor_aplicado`):
+
+
+| Campo             | Tipo   | Descripción                                                                     |
+| ----------------- | ------ | ------------------------------------------------------------------------------- |
+| `cantidadVisitas` | number | Visitas del prestador en el período.                                            |
+| `horasTrabajadas` | number | Suma de `tiempoMinutos` convertida a horas.                                     |
+| `finanzas`        | object | Mismo **resumen financiero** que en reportes (`totalGenerado`, `pagado`, etc.). |
+| `montoPagado`     | string | Igual a `finanzas.pagado`.                                                      |
+| `montoPendiente`  | string | `totalGenerado − pagado` (todo lo no pagado en el período).                     |
+
 
 `meta` (con filtros de período): `fechaDesde`, `fechaHasta`, `periodo` (ISO o null).
 
@@ -420,9 +429,9 @@ Query: `page`, `pageSize`, `estado` (`true`/`false`), `bajoStock` (`true`/`false
 | Atributo                                                               | Tipo                                              |
 | ---------------------------------------------------------------------- | ------------------------------------------------- |
 | `id`, `nombre`, `codigo`, `stockActual`, `stockMinimo`, `unidadMedida` | number / string                                   |
-| `descripcion`                                                          | string | null                                     |
+| `descripcion`                                                          | string                                            |
 | `requiereVencimiento`                                                  | boolean                                           |
-| `fechaVencimiento`                                                     | string | null                                     |
+| `fechaVencimiento`                                                     | string                                            |
 | `estado`                                                               | boolean                                           |
 | `bajoStock`                                                            | boolean (calculado: `stockActual <= stockMinimo`) |
 | `createdAt`, `updatedAt`                                               | string                                            |
@@ -503,7 +512,7 @@ Query: `page`, `pageSize`, `pacienteId` (opcional).
 | ------------------------------------------------------------------------------- | ----------------------------------------------------------- |
 | `id`, `pacienteId`                                                              | number                                                      |
 | `fechaCreacion`                                                                 | string                                                      |
-| `antecedentes`, `diagnosticoInicial`, `medicacion`, `alergias`, `observaciones` | string | null                                               |
+| `antecedentes`, `diagnosticoInicial`, `medicacion`, `alergias`, `observaciones` | string                                                      |
 | `createdAt`, `updatedAt`                                                        | string                                                      |
 | `paciente`                                                                      | objeto                                                      |
 | `evoluciones`                                                                   | **Evolución clínica[]** (ordenadas por `fecha` descendente) |
@@ -530,12 +539,12 @@ Query: `page`, `pageSize`, `historiaClinicaId` (opcional).
 `data`: **Evolución clínica**
 
 
-| Atributo                      | Tipo          |
-| ----------------------------- | ------------- |
-| `id`, `historiaClinicaId`     | number        |
-| `fecha`                       | string        |
-| `observaciones`, `medicacion` | string | null |
-| `createdAt`                   | string        |
+| Atributo                      | Tipo   |
+| ----------------------------- | ------ |
+| `id`, `historiaClinicaId`     | number |
+| `fecha`                       | string |
+| `observaciones`, `medicacion` | string |
+| `createdAt`                   | string |
 
 
 ---
@@ -581,21 +590,21 @@ Query: `page`, `pageSize`, `pacienteId`, `servicioId`, `estado` (`activa`  `susp
 `data`: **Asignación**
 
 
-| Atributo                                                                 | Tipo                                                      |
-| ------------------------------------------------------------------------ | --------------------------------------------------------- |
-| `id`, `pacienteId`, `servicioId`                                         | number                                                    |
-| `prestadorId`                                                            | number \| null                                            |
-| `fechaInicio`, `fechaFin`                                                | string / null                                             |
-| `periodoControl`, `cantidadPermitida`, `cantidadHoras`, `modalidadCobro`, `estado` | —                                                         |
-| `createdAt`, `updatedAt`                                                 | string                                                    |
-| `paciente`                                                               | `id`, `nombre`, `apellido`, `numeroDocumento`, `codigoQr`, `direccion`, `localidad` |
-| `servicio`                                                               | `id`, `nombre`, `estado`                                  |
-| `prestador`                                                              | `id`, `nombre`, `email` \| null                           |
+| Atributo                                                                           | Tipo                                                                                |
+| ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `id`, `pacienteId`, `servicioId`                                                   | number                                                                              |
+| `prestadorId`                                                                      | number | null                                                                       |
+| `fechaInicio`, `fechaFin`                                                          | string / null                                                                       |
+| `periodoControl`, `cantidadPermitida`, `cantidadHoras`, `modalidadCobro`, `estado` | —                                                                                   |
+| `createdAt`, `updatedAt`                                                           | string                                                                              |
+| `paciente`                                                                         | `id`, `nombre`, `apellido`, `numeroDocumento`, `codigoQr`, `direccion`, `localidad` |
+| `servicio`                                                                         | `id`, `nombre`, `estado`                                                            |
+| `prestador`                                                                        | `id`, `nombre`, `email` | null                                                      |
+
 
 Alta (`POST`): `prestadorId` es **opcional**. Si se envía, el prestador debe existir, estar activo y tener el `servicioId` en `prestador_servicios`. En `PATCH`, `prestadorId: null` quita la asignación de prestador.
 
 **Visitas:** solo se pueden registrar sobre asignaciones con `estado: "activa"` (409 si está `suspendida` o `finalizada`). La `fechaInicio` de la visita debe estar dentro de `[fechaInicio, fechaFin]` de la asignación. Si `modalidadCobro` no es `por_hora`, se valida cupo: no puede superarse `cantidadPermitida` en la ventana de `periodoControl` (`diario` / `semanal` / `mensual`, hora local del servidor). Si la asignación tiene `prestadorId`, solo ese prestador puede iniciar visitas (403 si no coincide). Si `prestadorId` es `null`, cualquier prestador activo con ese servicio en `prestador_servicios` puede iniciar la visita (403 si no lo tiene habilitado).
-
 
 ---
 
@@ -617,8 +626,8 @@ Query: `page`, `pageSize`, `prestadorId`, `pacienteServicioId`, `fechaDesde`, `f
 | `id`, `pacienteServicioId`, `prestadorId` | number                                                                                                  |
 | `fechaInicio`, `fechaFin`                 | string (ISO)                                                                                            |
 | `tiempoMinutos`                           | number                                                                                                  |
-| `finanzas`                                | **VisitaFinanzas** \| null (se crea automáticamente en el alta)                                        |
-| `observaciones`                           | string | null                                                                                           |
+| `finanzas`                                | **VisitaFinanzas** | null (se crea automáticamente en el alta)                                          |
+| `observaciones`                           | string                                                                                                  |
 | `createdAt`, `updatedAt`                  | string                                                                                                  |
 | `pacienteServicio`                        | `id`, `estado`, `paciente` (`id`, `nombre`, `apellido`, `numeroDocumento`), `servicio` (`id`, `nombre`) |
 | `prestador`                               | `id`, `nombre`, `email`                                                                                 |
@@ -633,16 +642,18 @@ Cada ítem de `insumos`: `id`, `insumoId`, `cantidad`, `insumoNombre`, `insumoCo
 
 Body: `pacienteServicioId`, `fechaInicio` (ISO), `tiempoMinutos` (1–720), `observaciones` (opcional), `fechaFin` (opcional; si se omite se calcula desde `fechaInicio` + `tiempoMinutos`), `prestadorId` (solo ADMIN, obligatorio para admin). La asignación debe estar `activa`, la fecha dentro de su vigencia y con cupo disponible (409 si no). Ver reglas completas en la sección de asignaciones paciente↔servicio. Consulta previa: `GET /api/v1/paciente-servicios/:id/disponibilidad`.
 
-Al crear la visita se genera automáticamente un registro en `visita_finanzas`: se toma la `modalidadCobro` de la asignación, se resuelven `tipoJornada` / `tipoDia` según `fechaInicio`, se busca la tarifa del servicio y se calcula `valorAplicado` (`por_hora`: unitario × minutos/60; `por_servicio` / `por_dia`: unitario).
+Al crear la visita se genera automáticamente un registro en `visita_finanzas`: se toma la `modalidadCobro` de la asignación, se resuelven `tipoJornada` / `tipoDia` según `fechaInicio` (día civil en `America/Argentina/Buenos_Aires`; `no_habil` incluye sábado, domingo y feriados nacionales argentinos), se busca la tarifa del servicio y se calcula `valorAplicado` (`por_hora`: unitario × minutos/60; `por_servicio` / `por_dia`: unitario).
 
 #### `PATCH /api/v1/visitas/:id/finanzas`
 
 Body JSON parcial (al menos uno obligatorio):
 
-| Campo        | Tipo    | Efecto al enviar `true`                                                                 |
-| ------------ | ------- | --------------------------------------------------------------------------------------- |
-| `facturado`  | boolean | Marca facturado; asigna `fechaFacturacion` si aún no tenía.                            |
-| `pagado`     | boolean | Marca pagado; asigna `fechaPago` si aún no tenía.                                       |
+
+| Campo       | Tipo    | Efecto al enviar `true`                                     |
+| ----------- | ------- | ----------------------------------------------------------- |
+| `facturado` | boolean | Marca facturado; asigna `fechaFacturacion` si aún no tenía. |
+| `pagado`    | boolean | Marca pagado; asigna `fechaPago` si aún no tenía.           |
+
 
 Al enviar `false`, se limpia el flag y la fecha correspondiente. Respuesta: visita completa (`data.finanzas` actualizado).
 
@@ -658,11 +669,13 @@ Ejemplos:
 
 Misma semántica que `PATCH …/:id/finanzas`, en lote. Body:
 
-| Campo       | Tipo       | Descripción                                      |
-| ----------- | ---------- | ------------------------------------------------ |
-| `visitaIds` | `number[]` | IDs a actualizar (1–200, sin duplicados).          |
-| `facturado` | boolean    | Opcional (al menos uno con `pagado`).            |
-| `pagado`    | boolean    | Opcional.                                        |
+
+| Campo       | Tipo       | Descripción                               |
+| ----------- | ---------- | ----------------------------------------- |
+| `visitaIds` | `number[]` | IDs a actualizar (1–200, sin duplicados). |
+| `facturado` | boolean    | Opcional (al menos uno con `pagado`).     |
+| `pagado`    | boolean    | Opcional.                                 |
+
 
 `data`: `{ "actualizadas": number, "visitaIds": number[] }`. Si algún id no existe → 404; si alguna visita no tiene finanzas → 409. La operación es **atómica** (todo o nada).
 
@@ -673,6 +686,32 @@ Misma semántica que `PATCH …/:id/finanzas`, en lote. Body:
   "pagado": true
 }
 ```
+
+#### `DELETE /api/v1/visitas/:id`
+
+Eliminación **definitiva** de la visita y su registro financiero (`visita_finanzas`). Solo **ADMIN**.
+
+**Permitido cuando:**
+
+- `estado` es `finalizada` o `cancelada` (no `iniciada`).
+- `finanzas.facturado` y `finanzas.pagado` son ambos `false` (o la visita no tiene finanzas, p. ej. cancelada antes de finalizar).
+
+**Efectos colaterales:**
+
+- Si la visita tenía insumos registrados, se **restaura el stock** automáticamente antes de borrar.
+- La visita desaparece de listados y reportes.
+
+**Errores:**
+
+| Código | Motivo |
+| ------ | ------ |
+| 403 | Usuario sin rol ADMIN. |
+| 404 | Visita inexistente. |
+| 409 | Visita `iniciada`, o con `facturado`/`pagado` en true. |
+
+Respuesta exitosa: **204** sin body.
+
+Para una visita `iniciada` que no se concretó, usar `PATCH /api/v1/visitas/:id/cancelar` (no DELETE).
 
 #### `GET /api/v1/visitas/:visitaId/insumos`
 
@@ -690,27 +729,31 @@ Misma semántica que `PATCH …/:id/finanzas`, en lote. Body:
 
 Query opcional (camelCase). En `GET /reportes/visitas` además: `page`, `pageSize` (máx. 100).
 
-| Parámetro      | Tipo    | Descripción                                                                 |
-| -------------- | ------- | --------------------------------------------------------------------------- |
-| `fechaDesde`   | ISO     | Filtra visitas con `fechaInicio` ≥ valor.                                   |
-| `fechaHasta`   | ISO     | Filtra visitas con `fechaInicio` ≤ valor.                                   |
-| `periodo`      | string  | `diario` \| `semanal` \| `mensual` — rango del período actual.              |
-| `prestadorId`  | number  | Solo visitas del prestador.                                                 |
-| `servicioId`   | number  | Solo visitas de ese servicio.                                               |
-| `facturado`    | boolean | Filtra por `visita_finanzas.facturado`.                                     |
-| `pagado`       | boolean | Filtra por `visita_finanzas.pagado`.                                        |
+
+| Parámetro     | Tipo    | Descripción                                                  |
+| ------------- | ------- | ------------------------------------------------------------ |
+| `fechaDesde`  | ISO     | Filtra visitas con `fechaInicio` ≥ valor.                    |
+| `fechaHasta`  | ISO     | Filtra visitas con `fechaInicio` ≤ valor.                    |
+| `periodo`     | string  | `diario` | `semanal` | `mensual` — rango del período actual. |
+| `prestadorId` | number  | Solo visitas del prestador.                                  |
+| `servicioId`  | number  | Solo visitas de ese servicio.                                |
+| `facturado`   | boolean | Filtra por `visita_finanzas.facturado`.                      |
+| `pagado`      | boolean | Filtra por `visita_finanzas.pagado`.                         |
+
 
 **Resumen financiero** (`resumen` en la respuesta y `finanzas` en cada ítem agregado): montos separados por estado de cobro (no un único total ambiguo):
 
-| Campo                         | Significado                                              |
-| ----------------------------- | -------------------------------------------------------- |
-| `totalGenerado`               | Suma de todo `valorAplicado`.                            |
-| `pendienteFacturacion`        | Monto con `facturado = false`.                           |
-| `facturadoPendientePago`      | Monto con `facturado = true` y `pagado = false`.         |
-| `pagado`                      | Monto con `pagado = true`.                               |
-| `cantidadPendienteFacturacion` | Cantidad de visitas en ese estado.                      |
-| `cantidadFacturadoPendientePago` | Idem.                                                 |
-| `cantidadPagado`              | Idem.                                                    |
+
+| Campo                            | Significado                                      |
+| -------------------------------- | ------------------------------------------------ |
+| `totalGenerado`                  | Suma de todo `valorAplicado`.                    |
+| `pendienteFacturacion`           | Monto con `facturado = false`.                   |
+| `facturadoPendientePago`         | Monto con `facturado = true` y `pagado = false`. |
+| `pagado`                         | Monto con `pagado = true`.                       |
+| `cantidadPendienteFacturacion`   | Cantidad de visitas en ese estado.               |
+| `cantidadFacturadoPendientePago` | Idem.                                            |
+| `cantidadPagado`                 | Idem.                                            |
+
 
 #### `GET /api/v1/reportes/visitas`
 
@@ -718,7 +761,7 @@ Vista operativa de finanzas: **cada visita por separado**, con selección masiva
 
 `data`: `{ items, total, page, pageSize, meta, resumen }`.
 
-Cada ítem: `id`, `fechaInicio`, `tiempoMinutos`, `horas`, `prestadorId`, `prestadorNombre`, `servicioId`, `servicioNombre`, `pacienteId`, `pacienteNombre`, `pacienteApellido`, `finanzas` (`valorAplicado`, `facturado`, `pagado`, fechas, `estadoCobro`: `pendiente_facturacion` \| `facturado_pendiente_pago` \| `pagado`).
+Cada ítem: `id`, `fechaInicio`, `tiempoMinutos`, `horas`, `prestadorId`, `prestadorNombre`, `servicioId`, `servicioNombre`, `pacienteId`, `pacienteNombre`, `pacienteApellido`, `finanzas` (`valorAplicado`, `facturado`, `pagado`, fechas, `estadoCobro`: `pendiente_facturacion`  `facturado_pendiente_pago`  `pagado`).
 
 Combinar con `PATCH /visitas/:id/finanzas` y `PATCH /visitas/finanzas/bulk` para marcar cobros.
 

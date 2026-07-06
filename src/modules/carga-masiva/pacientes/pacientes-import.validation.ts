@@ -1,54 +1,25 @@
 import { z } from "zod";
+import { TELEFONO_MAX_LENGTH, TELEFONO_MAX_LENGTH_MESSAGE } from "../../../shared/constants/telefono.js";
 import { PACIENTES_PLANTILLA_SEXOS } from "./pacientes-plantilla.constants.js";
 
+const textoOpcional = (max: number, maxMessage: string) =>
+  z.string().trim().max(max, maxMessage).default("");
+
 export const pacienteImportRowSchema = z.object({
-  obraSocial: z
-    .string()
-    .trim()
-    .min(1, "Elegí una obra social de la lista desplegable"),
-  nombre: z
-    .string()
-    .trim()
-    .min(1, "El nombre es obligatorio")
-    .max(100, "El nombre no puede superar 100 caracteres"),
-  apellido: z
-    .string()
-    .trim()
-    .min(1, "El apellido es obligatorio")
-    .max(100, "El apellido no puede superar 100 caracteres"),
-  numeroDocumento: z
-    .string()
-    .trim()
-    .min(1, "El número de documento es obligatorio")
-    .max(20, "El número de documento no puede superar 20 caracteres"),
-  fechaNacimiento: z.coerce.date({
-    invalid_type_error: "La fecha de nacimiento no es válida. Usá el formato AAAA-MM-DD",
-    required_error: "La fecha de nacimiento es obligatoria",
-  }),
-  sexo: z.enum(PACIENTES_PLANTILLA_SEXOS, {
-    errorMap: () => ({
-      message: "Elegí el sexo de la lista desplegable (M, F o X)",
-    }),
-  }),
-  telefono: z
-    .string()
-    .trim()
-    .min(1, "El teléfono es obligatorio")
-    .max(20, "El teléfono no puede superar 20 caracteres"),
-  direccion: z
-    .string()
-    .trim()
-    .min(1, "La dirección es obligatoria")
-    .max(255, "La dirección no puede superar 255 caracteres"),
-  localidad: z
-    .string()
-    .trim()
-    .min(1, "Elegí una localidad de la lista desplegable"),
-  numeroAfiliado: z
-    .string()
-    .trim()
-    .min(1, "El número de afiliado es obligatorio")
-    .max(50, "El número de afiliado no puede superar 50 caracteres"),
+  obraSocial: z.string().trim().default(""),
+  nombre: textoOpcional(100, "El nombre no puede superar 100 caracteres"),
+  apellido: textoOpcional(100, "El apellido no puede superar 100 caracteres"),
+  numeroDocumento: textoOpcional(20, "El número de documento no puede superar 20 caracteres"),
+  fechaNacimiento: z.union([z.string(), z.date()]).optional(),
+  sexo: z.string().trim().default(""),
+  telefono: textoOpcional(TELEFONO_MAX_LENGTH, TELEFONO_MAX_LENGTH_MESSAGE),
+  direccion: textoOpcional(255, "La dirección no puede superar 255 caracteres"),
+  localidad: z.string().trim().default(""),
+  numeroAfiliado: textoOpcional(50, "El número de afiliado no puede superar 50 caracteres"),
 });
 
 export type PacienteImportRowInput = z.infer<typeof pacienteImportRowSchema>;
+
+export function isPacienteImportSexoValido(sexo: string): boolean {
+  return PACIENTES_PLANTILLA_SEXOS.includes(sexo as (typeof PACIENTES_PLANTILLA_SEXOS)[number]);
+}

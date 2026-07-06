@@ -2,6 +2,9 @@ import type { ServicioTarifaDto } from "../servicio-tarifas/servicio-tarifas.dto
 import type { PacienteServicioEstado } from "../../shared/constants/paciente-servicio-estado.js";
 import type { ModalidadCobro } from "../../shared/constants/modalidad-cobro.js";
 import type { PeriodoControl } from "../../shared/constants/periodo-control.js";
+import type { ReglasAsignacionServicioDto } from "../../shared/servicio/reglasAsignacion.js";
+
+export type { ReglasAsignacionServicioDto } from "../../shared/servicio/reglasAsignacion.js";
 
 export interface ServicioPacienteAsignadoDto {
   pacienteServicioId: number;
@@ -29,6 +32,8 @@ export interface ServicioDto {
   descripcion: string | null;
   estado: boolean;
   controlHorario: boolean;
+  modoRelevo: boolean;
+  reglasAsignacion: ReglasAsignacionServicioDto;
   createdAt: string;
 }
 

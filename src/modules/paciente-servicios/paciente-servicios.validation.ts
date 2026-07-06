@@ -21,12 +21,15 @@ const pacienteServicioBaseFields = {
   pacienteId: z.coerce.number().int().positive(),
   servicioId: z.coerce.number().int().positive(),
   prestadorId: z.coerce.number().int().positive().optional().nullable(),
+  prestadorIds: z.array(z.coerce.number().int().positive()).optional(),
   fechaInicio: z.coerce.date(),
   fechaFin: z.coerce.date().optional().nullable(),
-  periodoControl: z.enum(PERIODOS_CONTROL),
-  cantidadPermitida: z.coerce.number().int().min(1),
+  coberturaDiariaInicio: z.string().trim().optional().nullable(),
+  coberturaDiariaFin: z.string().trim().optional().nullable(),
+  periodoControl: z.enum(PERIODOS_CONTROL).optional(),
+  cantidadPermitida: z.coerce.number().int().min(1).optional(),
   cantidadHoras: z.coerce.number().int().min(1).optional().nullable(),
-  modalidadCobro: z.enum(MODALIDADES_COBRO),
+  modalidadCobro: z.enum(MODALIDADES_COBRO).optional(),
   estado: z.enum(PACIENTE_SERVICIO_ESTADOS),
 };
 
@@ -39,16 +42,8 @@ export const createPacienteServicioSchema = z
     if (data.fechaFin && data.fechaFin < data.fechaInicio) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "fechaFin no puede ser anterior a fechaInicio",
+        message: "La fecha de fin no puede ser anterior al inicio.",
         path: ["fechaFin"],
-      });
-    }
-
-    if (data.modalidadCobro === "por_hora" && (data.cantidadHoras ?? null) === null) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "cantidadHoras es obligatoria cuando modalidadCobro es por_hora",
-        path: ["cantidadHoras"],
       });
     }
   });
@@ -60,11 +55,14 @@ export const updatePacienteServicioSchema = z
     pacienteId: z.coerce.number().int().positive().optional(),
     servicioId: z.coerce.number().int().positive().optional(),
     prestadorId: z.coerce.number().int().positive().optional().nullable(),
+    prestadorIds: z.array(z.coerce.number().int().positive()).optional(),
     fechaInicio: z.coerce.date().optional(),
     fechaFin: z.coerce.date().optional().nullable(),
+    coberturaDiariaInicio: z.string().trim().optional().nullable(),
+    coberturaDiariaFin: z.string().trim().optional().nullable(),
     periodoControl: z.enum(PERIODOS_CONTROL).optional(),
-    cantidadPermitida: z.coerce.number().int().min(1).optional(),
-    cantidadHoras: z.coerce.number().int().min(1).optional().nullable(),
+    cantidadPermitida: z.coerce.number().int().min(1, "La cantidad permitida debe ser al menos 1").optional(),
+    cantidadHoras: z.coerce.number().int().min(1, "La cantidad de horas debe ser al menos 1").optional().nullable(),
     modalidadCobro: z.enum(MODALIDADES_COBRO).optional(),
     estado: z.enum(PACIENTE_SERVICIO_ESTADOS).optional(),
   })
@@ -77,16 +75,8 @@ export const updatePacienteServicioSchema = z
     ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "fechaFin no puede ser anterior a fechaInicio",
+        message: "La fecha de fin no puede ser anterior al inicio.",
         path: ["fechaFin"],
-      });
-    }
-
-    if (data.modalidadCobro === "por_hora" && data.cantidadHoras === undefined) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "cantidadHoras es obligatoria cuando modalidadCobro es por_hora",
-        path: ["cantidadHoras"],
       });
     }
   });

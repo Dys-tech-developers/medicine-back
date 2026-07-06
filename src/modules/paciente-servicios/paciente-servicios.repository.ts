@@ -4,6 +4,7 @@ import {
   type PacienteServicioDetail,
 } from "../../shared/prisma-includes/paciente-servicio.include.js";
 import type { PacienteServicioEstado } from "../../shared/constants/paciente-servicio-estado.js";
+import { PACIENTE_SERVICIO_ESTADO } from "../../shared/constants/paciente-servicio-estado.js";
 
 export interface PaginatedPacienteServicios {
   items: PacienteServicioDetail[];
@@ -22,6 +23,7 @@ export interface CreatePacienteServicioData {
   pacienteId: number;
   servicioId: number;
   prestadorId: number | null;
+  prestadorIds?: number[] | undefined;
   fechaInicio: Date;
   fechaFin: Date | null;
   periodoControl: string;
@@ -29,12 +31,15 @@ export interface CreatePacienteServicioData {
   cantidadHoras: number | null;
   modalidadCobro: string;
   estado: PacienteServicioEstado;
+  coberturaDiariaInicio: string | null;
+  coberturaDiariaFin: string | null;
 }
 
 export interface UpdatePacienteServicioData {
   pacienteId?: number | undefined;
   servicioId?: number | undefined;
   prestadorId?: number | null | undefined;
+  prestadorIds?: number[] | undefined;
   fechaInicio?: Date | undefined;
   fechaFin?: Date | null | undefined;
   periodoControl?: string | undefined;
@@ -42,6 +47,8 @@ export interface UpdatePacienteServicioData {
   cantidadHoras?: number | null | undefined;
   modalidadCobro?: string | undefined;
   estado?: PacienteServicioEstado | undefined;
+  coberturaDiariaInicio?: string | null | undefined;
+  coberturaDiariaFin?: string | null | undefined;
 }
 
 export class PacienteServiciosRepository {
@@ -100,10 +107,12 @@ export class PacienteServiciosRepository {
     return paciente !== null;
   }
 
-  async findServicioById(id: number): Promise<{ id: number; estado: boolean } | null> {
+  async findServicioById(
+    id: number,
+  ): Promise<{ id: number; estado: boolean; controlHorario: boolean; modoRelevo: boolean } | null> {
     return this.db.servicio.findUnique({
       where: { id },
-      select: { id: true, estado: true },
+      select: { id: true, estado: true, controlHorario: true, modoRelevo: true },
     });
   }
 
@@ -122,6 +131,22 @@ export class PacienteServiciosRepository {
       select: { prestadorId: true },
     });
     return link !== null;
+  }
+
+  async findActivaByPacienteYServicio(
+    pacienteId: number,
+    servicioId: number,
+    excludeId?: number,
+  ): Promise<{ id: number } | null> {
+    return this.db.pacienteServicio.findFirst({
+      where: {
+        pacienteId,
+        servicioId,
+        estado: PACIENTE_SERVICIO_ESTADO.ACTIVA,
+        ...(excludeId !== undefined ? { id: { not: excludeId } } : {}),
+      },
+      select: { id: true },
+    });
   }
 
   async countVisitas(pacienteServicioId: number): Promise<number> {
@@ -161,53 +186,117 @@ export class PacienteServiciosRepository {
   }
 
   async create(data: CreatePacienteServicioData): Promise<PacienteServicioDetail> {
-    return this.db.pacienteServicio.create({
-      data,
-      include: pacienteServicioDetailInclude,
+    return this.db.$transaction(async (tx) => {
+      const row = await tx.pacienteServicio.create({
+        data: {
+          pacienteId: data.pacienteId,
+          servicioId: data.servicioId,
+          prestadorId: data.prestadorId,
+          fechaInicio: data.fechaInicio,
+          fechaFin: data.fechaFin,
+          periodoControl: data.periodoControl,
+          cantidadPermitida: data.cantidadPermitida,
+          cantidadHoras: data.cantidadHoras,
+          modalidadCobro: data.modalidadCobro,
+          estado: data.estado,
+          coberturaDiariaInicio: data.coberturaDiariaInicio,
+          coberturaDiariaFin: data.coberturaDiariaFin,
+        },
+      });
+
+      if (data.prestadorIds !== undefined && data.prestadorIds.length > 0) {
+        await tx.pacienteServicioPrestador.createMany({
+          data: data.prestadorIds.map((prestadorId) => ({
+            pacienteServicioId: row.id,
+            prestadorId,
+          })),
+        });
+      }
+
+      const detail = await tx.pacienteServicio.findUnique({
+        where: { id: row.id },
+        include: pacienteServicioDetailInclude,
+      });
+
+      if (!detail) {
+        throw new Error("Asignación creada pero no encontrada");
+      }
+
+      return detail;
     });
   }
 
   async update(id: number, data: UpdatePacienteServicioData): Promise<PacienteServicioDetail> {
-    const updateData: Prisma.PacienteServicioUpdateInput = {};
+    return this.db.$transaction(async (tx) => {
+      const updateData: Prisma.PacienteServicioUpdateInput = {};
 
-    if (data.pacienteId !== undefined) {
-      updateData.paciente = { connect: { id: data.pacienteId } };
-    }
-    if (data.servicioId !== undefined) {
-      updateData.servicio = { connect: { id: data.servicioId } };
-    }
-    if (data.prestadorId !== undefined) {
-      updateData.prestador =
-        data.prestadorId === null
-          ? { disconnect: true }
-          : { connect: { id: data.prestadorId } };
-    }
-    if (data.fechaInicio !== undefined) {
-      updateData.fechaInicio = data.fechaInicio;
-    }
-    if (data.fechaFin !== undefined) {
-      updateData.fechaFin = data.fechaFin;
-    }
-    if (data.periodoControl !== undefined) {
-      updateData.periodoControl = data.periodoControl;
-    }
-    if (data.cantidadPermitida !== undefined) {
-      updateData.cantidadPermitida = data.cantidadPermitida;
-    }
-    if (data.cantidadHoras !== undefined) {
-      updateData.cantidadHoras = data.cantidadHoras;
-    }
-    if (data.modalidadCobro !== undefined) {
-      updateData.modalidadCobro = data.modalidadCobro;
-    }
-    if (data.estado !== undefined) {
-      updateData.estado = data.estado;
-    }
+      if (data.pacienteId !== undefined) {
+        updateData.paciente = { connect: { id: data.pacienteId } };
+      }
+      if (data.servicioId !== undefined) {
+        updateData.servicio = { connect: { id: data.servicioId } };
+      }
+      if (data.prestadorId !== undefined) {
+        updateData.prestador =
+          data.prestadorId === null
+            ? { disconnect: true }
+            : { connect: { id: data.prestadorId } };
+      }
+      if (data.fechaInicio !== undefined) {
+        updateData.fechaInicio = data.fechaInicio;
+      }
+      if (data.fechaFin !== undefined) {
+        updateData.fechaFin = data.fechaFin;
+      }
+      if (data.periodoControl !== undefined) {
+        updateData.periodoControl = data.periodoControl;
+      }
+      if (data.cantidadPermitida !== undefined) {
+        updateData.cantidadPermitida = data.cantidadPermitida;
+      }
+      if (data.cantidadHoras !== undefined) {
+        updateData.cantidadHoras = data.cantidadHoras;
+      }
+      if (data.modalidadCobro !== undefined) {
+        updateData.modalidadCobro = data.modalidadCobro;
+      }
+      if (data.estado !== undefined) {
+        updateData.estado = data.estado;
+      }
+      if (data.coberturaDiariaInicio !== undefined) {
+        updateData.coberturaDiariaInicio = data.coberturaDiariaInicio;
+      }
+      if (data.coberturaDiariaFin !== undefined) {
+        updateData.coberturaDiariaFin = data.coberturaDiariaFin;
+      }
 
-    return this.db.pacienteServicio.update({
-      where: { id },
-      data: updateData,
-      include: pacienteServicioDetailInclude,
+      await tx.pacienteServicio.update({
+        where: { id },
+        data: updateData,
+      });
+
+      if (data.prestadorIds !== undefined) {
+        await tx.pacienteServicioPrestador.deleteMany({ where: { pacienteServicioId: id } });
+        if (data.prestadorIds.length > 0) {
+          await tx.pacienteServicioPrestador.createMany({
+            data: data.prestadorIds.map((prestadorId) => ({
+              pacienteServicioId: id,
+              prestadorId,
+            })),
+          });
+        }
+      }
+
+      const detail = await tx.pacienteServicio.findUnique({
+        where: { id },
+        include: pacienteServicioDetailInclude,
+      });
+
+      if (!detail) {
+        throw new Error("Asignación actualizada pero no encontrada");
+      }
+
+      return detail;
     });
   }
 

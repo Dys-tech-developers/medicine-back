@@ -3,6 +3,7 @@
 export const DEV_SEED_PASSWORD = "MedicineTest1!";
 
 export const DEV_OBRAS_SOCIALES = [
+  { codigo: "N/A", nombre: "N/A" },
   { codigo: "SIN-OS", nombre: "Sin obra social" },
   { codigo: "OSDE", nombre: "OSDE" },
   { codigo: "SWISS", nombre: "Swiss Medical" },
@@ -29,8 +30,7 @@ export const DEV_SERVICIOS = [
 /** Combinaciones habituales para registrar visitas en distintos horarios. */
 export const DEV_TARIFA_VARIANTES = [
   { modalidadCobro: "por_servicio", tipoJornada: "diurno", tipoDia: "habil" },
-  { modalidadCobro: "por_servicio", tipoJornada: "diurno", tipoDia: "sabado" },
-  { modalidadCobro: "por_servicio", tipoJornada: "diurno", tipoDia: "domingo" },
+  { modalidadCobro: "por_servicio", tipoJornada: "diurno", tipoDia: "no_habil" },
   { modalidadCobro: "por_servicio", tipoJornada: "nocturno", tipoDia: "habil" },
 ] as const;
 

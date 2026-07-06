@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { REGIMENES_IVA } from "../../../shared/constants/regimen-iva.js";
+import { TELEFONO_MAX_LENGTH, TELEFONO_MAX_LENGTH_MESSAGE } from "../../../shared/constants/telefono.js";
 
 export const prestadorImportRowSchema = z.object({
   nombre: z
@@ -22,7 +23,7 @@ export const prestadorImportRowSchema = z.object({
     .string()
     .trim()
     .min(1, "El teléfono es obligatorio")
-    .max(20, "El teléfono no puede superar 20 caracteres"),
+    .max(TELEFONO_MAX_LENGTH, TELEFONO_MAX_LENGTH_MESSAGE),
   lugarResidencia: z
     .string()
     .trim()

@@ -1,4 +1,8 @@
 import { AppError } from "../../core/errors/AppError.js";
+import {
+  hasClinicalData,
+  HISTORIA_CLINICA_SIN_DATOS_MESSAGE,
+} from "../../shared/historia-clinica/hasClinicalData.js";
 import type { HistoriasClinicasRepository } from "./historias-clinicas.repository.js";
 import type {
   CreateHistoriaClinicaInput,
@@ -78,6 +82,23 @@ export class HistoriasClinicasService {
     const existing = await this.historiasClinicasRepository.findById(id);
     if (!existing) {
       throw AppError.notFound("Historia clínica no encontrada");
+    }
+
+    const merged = {
+      antecedentes:
+        input.antecedentes !== undefined ? input.antecedentes : existing.antecedentes,
+      diagnosticoInicial:
+        input.diagnosticoInicial !== undefined
+          ? input.diagnosticoInicial
+          : existing.diagnosticoInicial,
+      medicacion: input.medicacion !== undefined ? input.medicacion : existing.medicacion,
+      alergias: input.alergias !== undefined ? input.alergias : existing.alergias,
+      observaciones:
+        input.observaciones !== undefined ? input.observaciones : existing.observaciones,
+    };
+
+    if (!hasClinicalData(merged)) {
+      throw AppError.badRequest(HISTORIA_CLINICA_SIN_DATOS_MESSAGE);
     }
 
     const historia = await this.historiasClinicasRepository.update(id, {

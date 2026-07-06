@@ -29,6 +29,7 @@ export const visitaDetailInclude = {
           id: true,
           nombre: true,
           controlHorario: true,
+          modoRelevo: true,
         },
       },
     },

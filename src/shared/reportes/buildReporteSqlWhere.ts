@@ -38,11 +38,11 @@ export function buildReporteVisitaWhere(filtros: ReporteSqlFiltros): Prisma.Sql 
   }
 
   if (filtros.facturado !== undefined) {
-    clauses.push(Prisma.sql`vf.facturado = ${filtros.facturado ? 1 : 0}`);
+    clauses.push(Prisma.sql`vf.facturado = ${filtros.facturado}`);
   }
 
   if (filtros.pagado !== undefined) {
-    clauses.push(Prisma.sql`vf.pagado = ${filtros.pagado ? 1 : 0}`);
+    clauses.push(Prisma.sql`vf.pagado = ${filtros.pagado}`);
   }
 
   if (clauses.length === 0) {

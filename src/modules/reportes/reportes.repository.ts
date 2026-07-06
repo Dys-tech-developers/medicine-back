@@ -68,13 +68,13 @@ export class ReportesRepository {
 
     const rows = await this.db.$queryRaw<RawResumenFinancieroRow[]>`
       SELECT
-        COALESCE(SUM(vf.valor_aplicado), 0) AS total_generado,
-        COALESCE(SUM(CASE WHEN vf.facturado = 0 THEN vf.valor_aplicado ELSE 0 END), 0) AS pendiente_facturacion,
-        COALESCE(SUM(CASE WHEN vf.facturado = 1 AND vf.pagado = 0 THEN vf.valor_aplicado ELSE 0 END), 0) AS facturado_pendiente_pago,
-        COALESCE(SUM(CASE WHEN vf.pagado = 1 THEN vf.valor_aplicado ELSE 0 END), 0) AS pagado,
-        COUNT(CASE WHEN vf.facturado = 0 THEN 1 END) AS cantidad_pendiente_facturacion,
-        COUNT(CASE WHEN vf.facturado = 1 AND vf.pagado = 0 THEN 1 END) AS cantidad_facturado_pendiente_pago,
-        COUNT(CASE WHEN vf.pagado = 1 THEN 1 END) AS cantidad_pagado
+        CAST(COALESCE(SUM(vf.valor_aplicado), 0) AS TEXT) AS total_generado,
+        CAST(COALESCE(SUM(CASE WHEN NOT vf.facturado THEN vf.valor_aplicado ELSE 0 END), 0) AS TEXT) AS pendiente_facturacion,
+        CAST(COALESCE(SUM(CASE WHEN vf.facturado AND NOT vf.pagado THEN vf.valor_aplicado ELSE 0 END), 0) AS TEXT) AS facturado_pendiente_pago,
+        CAST(COALESCE(SUM(CASE WHEN vf.pagado THEN vf.valor_aplicado ELSE 0 END), 0) AS TEXT) AS pagado,
+        COUNT(CASE WHEN NOT vf.facturado THEN 1 END) AS cantidad_pendiente_facturacion,
+        COUNT(CASE WHEN vf.facturado AND NOT vf.pagado THEN 1 END) AS cantidad_facturado_pendiente_pago,
+        COUNT(CASE WHEN vf.pagado THEN 1 END) AS cantidad_pagado
       ${fromJoin}
       WHERE ${where}
     `;
@@ -123,13 +123,13 @@ export class ReportesRepository {
         v.prestador_id AS prestador_id,
         COUNT(v.id) AS cantidad_visitas,
         COALESCE(SUM(v.tiempo_minutos), 0) AS tiempo_minutos_total,
-        COALESCE(SUM(vf.valor_aplicado), 0) AS total_generado,
-        COALESCE(SUM(CASE WHEN vf.facturado = 0 THEN vf.valor_aplicado ELSE 0 END), 0) AS pendiente_facturacion,
-        COALESCE(SUM(CASE WHEN vf.facturado = 1 AND vf.pagado = 0 THEN vf.valor_aplicado ELSE 0 END), 0) AS facturado_pendiente_pago,
-        COALESCE(SUM(CASE WHEN vf.pagado = 1 THEN vf.valor_aplicado ELSE 0 END), 0) AS pagado,
-        COUNT(CASE WHEN vf.facturado = 0 THEN 1 END) AS cantidad_pendiente_facturacion,
-        COUNT(CASE WHEN vf.facturado = 1 AND vf.pagado = 0 THEN 1 END) AS cantidad_facturado_pendiente_pago,
-        COUNT(CASE WHEN vf.pagado = 1 THEN 1 END) AS cantidad_pagado
+        CAST(COALESCE(SUM(vf.valor_aplicado), 0) AS TEXT) AS total_generado,
+        CAST(COALESCE(SUM(CASE WHEN NOT vf.facturado THEN vf.valor_aplicado ELSE 0 END), 0) AS TEXT) AS pendiente_facturacion,
+        CAST(COALESCE(SUM(CASE WHEN vf.facturado AND NOT vf.pagado THEN vf.valor_aplicado ELSE 0 END), 0) AS TEXT) AS facturado_pendiente_pago,
+        CAST(COALESCE(SUM(CASE WHEN vf.pagado THEN vf.valor_aplicado ELSE 0 END), 0) AS TEXT) AS pagado,
+        COUNT(CASE WHEN NOT vf.facturado THEN 1 END) AS cantidad_pendiente_facturacion,
+        COUNT(CASE WHEN vf.facturado AND NOT vf.pagado THEN 1 END) AS cantidad_facturado_pendiente_pago,
+        COUNT(CASE WHEN vf.pagado THEN 1 END) AS cantidad_pagado
       ${fromJoin}
       WHERE ${where}
       GROUP BY v.prestador_id
@@ -146,13 +146,13 @@ export class ReportesRepository {
         s.nombre AS nombre_servicio,
         COUNT(v.id) AS cantidad_visitas,
         COALESCE(SUM(v.tiempo_minutos), 0) AS tiempo_minutos_total,
-        COALESCE(SUM(vf.valor_aplicado), 0) AS total_generado,
-        COALESCE(SUM(CASE WHEN vf.facturado = 0 THEN vf.valor_aplicado ELSE 0 END), 0) AS pendiente_facturacion,
-        COALESCE(SUM(CASE WHEN vf.facturado = 1 AND vf.pagado = 0 THEN vf.valor_aplicado ELSE 0 END), 0) AS facturado_pendiente_pago,
-        COALESCE(SUM(CASE WHEN vf.pagado = 1 THEN vf.valor_aplicado ELSE 0 END), 0) AS pagado,
-        COUNT(CASE WHEN vf.facturado = 0 THEN 1 END) AS cantidad_pendiente_facturacion,
-        COUNT(CASE WHEN vf.facturado = 1 AND vf.pagado = 0 THEN 1 END) AS cantidad_facturado_pendiente_pago,
-        COUNT(CASE WHEN vf.pagado = 1 THEN 1 END) AS cantidad_pagado
+        CAST(COALESCE(SUM(vf.valor_aplicado), 0) AS TEXT) AS total_generado,
+        CAST(COALESCE(SUM(CASE WHEN NOT vf.facturado THEN vf.valor_aplicado ELSE 0 END), 0) AS TEXT) AS pendiente_facturacion,
+        CAST(COALESCE(SUM(CASE WHEN vf.facturado AND NOT vf.pagado THEN vf.valor_aplicado ELSE 0 END), 0) AS TEXT) AS facturado_pendiente_pago,
+        CAST(COALESCE(SUM(CASE WHEN vf.pagado THEN vf.valor_aplicado ELSE 0 END), 0) AS TEXT) AS pagado,
+        COUNT(CASE WHEN NOT vf.facturado THEN 1 END) AS cantidad_pendiente_facturacion,
+        COUNT(CASE WHEN vf.facturado AND NOT vf.pagado THEN 1 END) AS cantidad_facturado_pendiente_pago,
+        COUNT(CASE WHEN vf.pagado THEN 1 END) AS cantidad_pagado
       FROM visitas v
       INNER JOIN visita_finanzas vf ON vf.visita_id = v.id
       INNER JOIN paciente_servicios ps ON ps.id = v.paciente_servicio_id

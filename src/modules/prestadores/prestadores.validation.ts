@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { PERIODOS_CONTROL } from "../../shared/constants/periodo-control.js";
 import { REGIMENES_IVA } from "../../shared/constants/regimen-iva.js";
+import { TELEFONO_MAX_LENGTH, TELEFONO_MAX_LENGTH_MESSAGE } from "../../shared/constants/telefono.js";
 
 const validarRangoFechas = (
   data: { fechaDesde?: Date; fechaHasta?: Date },
@@ -68,7 +69,7 @@ export const createPrestadorSchema = z.object({
     .string()
     .min(10)
     .max(72, "La contraseña no puede superar los 72 caracteres (límite de bcrypt)"),
-  telefono: z.string().min(1).max(20),
+  telefono: z.string().min(1).max(TELEFONO_MAX_LENGTH, TELEFONO_MAX_LENGTH_MESSAGE),
   lugarResidencia: z.string().min(1).max(255),
   documento: z.string().min(1).max(20),
   matricula: z.string().min(1).max(50),

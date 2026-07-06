@@ -76,3 +76,9 @@ export const updateInsumoSchema = z
   });
 
 export type UpdateInsumoInput = z.infer<typeof updateInsumoSchema>;
+
+export const deleteInsumosBulkBodySchema = z.object({
+  ids: z.array(z.coerce.number().int().positive()).min(1).max(200),
+});
+
+export type DeleteInsumosBulkBody = z.infer<typeof deleteInsumosBulkBodySchema>;

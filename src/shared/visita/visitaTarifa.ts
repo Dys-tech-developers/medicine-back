@@ -1,6 +1,8 @@
 import type { Decimal } from "@prisma/client/runtime/library";
+import { ARGENTINA_TIME_ZONE, getCalendarPartsInTimeZone, getDayOfWeek } from "../date/calendarDate.js";
 import type { ModalidadCobro } from "../constants/modalidad-cobro.js";
 import type { TipoDia, TipoJornada } from "../constants/tarifa.js";
+import { isFeriadoArgentina } from "../feriados/feriadosArgentina.js";
 
 const HORA_INICIO_DIURNO = 6;
 const HORA_FIN_DIURNO = 20;
@@ -18,13 +20,13 @@ export function resolveTipoJornada(fechaInicio: Date): TipoJornada {
 }
 
 export function resolveTipoDia(fechaInicio: Date): TipoDia {
-  const day = fechaInicio.getDay();
-  if (day === 0) {
-    return "domingo";
+  const parts = getCalendarPartsInTimeZone(fechaInicio, ARGENTINA_TIME_ZONE);
+  const day = getDayOfWeek(parts);
+
+  if (day === 0 || day === 6 || isFeriadoArgentina(fechaInicio)) {
+    return "no_habil";
   }
-  if (day === 6) {
-    return "sabado";
-  }
+
   return "habil";
 }
 

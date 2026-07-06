@@ -1,9 +1,9 @@
 import type { PrismaClient } from "@prisma/client";
 import {
   pacienteDetailInclude,
-  pacienteObraSocialInclude,
+  pacienteListInclude,
   type PacienteDetailRow,
-  type PacienteWithObraSocialRow,
+  type PacienteListRow,
 } from "../../shared/prisma-includes/paciente.include.js";
 import {
   formatPacienteCodigoQr,
@@ -26,7 +26,7 @@ export interface CreatePacienteData {
 export type UpdatePacienteData = Partial<CreatePacienteData>;
 
 export interface PaginatedPacientes {
-  items: PacienteWithObraSocialRow[];
+  items: PacienteListRow[];
   total: number;
   page: number;
   pageSize: number;
@@ -39,7 +39,7 @@ export class PacientesRepository {
     const skip = (page - 1) * pageSize;
     const [items, total] = await Promise.all([
       this.db.paciente.findMany({
-        include: pacienteObraSocialInclude,
+        include: pacienteListInclude,
         orderBy: { createdAt: "desc" },
         skip,
         take: pageSize,
@@ -69,6 +69,29 @@ export class PacientesRepository {
       select: { id: true, estado: true },
     });
     return row !== null;
+  }
+
+  async findObraSocialById(
+    obraSocialId: number,
+  ): Promise<{ id: number; estado: boolean } | null> {
+    return this.db.obraSocial.findUnique({
+      where: { id: obraSocialId },
+      select: { id: true, estado: true },
+    });
+  }
+
+  async findObraSocialActivaByCodigo(codigo: string): Promise<{ id: number } | null> {
+    return this.db.obraSocial.findFirst({
+      where: { codigo, estado: true },
+      select: { id: true },
+    });
+  }
+
+  async findByNumeroDocumento(numeroDocumento: string): Promise<{ id: number } | null> {
+    return this.db.paciente.findUnique({
+      where: { numeroDocumento },
+      select: { id: true },
+    });
   }
 
   async findObraSocialEstado(obraSocialId: number): Promise<boolean | null> {

@@ -50,6 +50,9 @@ export function mapVisitaToDto(visita: VisitaDetail): VisitaDto {
     fechaFin: visita.fechaFin?.toISOString() ?? null,
     tiempoMinutos: visita.tiempoMinutos,
     observaciones: visita.observaciones,
+    cierreAutomatico: visita.cierreAutomatico,
+    cierrePorRelevo: visita.cierrePorRelevo,
+    prestadorRelevoId: visita.prestadorRelevoId,
     createdAt: visita.createdAt.toISOString(),
     updatedAt: visita.updatedAt.toISOString(),
     pacienteServicio: {

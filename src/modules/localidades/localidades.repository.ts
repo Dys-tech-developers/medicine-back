@@ -8,4 +8,12 @@ export class LocalidadesRepository {
       orderBy: { nombre: "asc" },
     });
   }
+
+  async existsByNombre(nombre: string): Promise<boolean> {
+    const row = await this.db.localidad.findUnique({
+      where: { nombre },
+      select: { id: true },
+    });
+    return row !== null;
+  }
 }

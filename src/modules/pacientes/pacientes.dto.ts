@@ -19,6 +19,9 @@ export interface PacienteListItemDto {
   localidad: string;
   numeroAfiliado: string;
   createdAt: string;
+  tieneHistoriaClinica: boolean;
+  serviciosActivosCount: number;
+  serviciosActivosNombres: string[];
 }
 
 import type { ServicioTarifaDto } from "../servicio-tarifas/servicio-tarifas.dto.js";
@@ -26,10 +29,25 @@ import type { PacienteServicioEstado } from "../../shared/constants/paciente-ser
 import type { ModalidadCobro } from "../../shared/constants/modalidad-cobro.js";
 import type { PeriodoControl } from "../../shared/constants/periodo-control.js";
 import type { PacienteServicioDisponibilidadDto } from "../../shared/paciente-servicio/asDisponibilidadDto.js";
+import type { ReglasAsignacionServicioDto } from "../../shared/servicio/reglasAsignacion.js";
 
 export interface VisitaPendienteEnAsignacionDto {
   id: number;
   fechaInicio: string;
+  /** ISO; null si la asignación no tiene `cantidadHoras`. */
+  fechaLimite: string | null;
+}
+
+export interface CoberturaActivaEnAsignacionDto {
+  visitaId: number;
+  prestadorId: number;
+  prestadorNombre: string;
+  fechaInicio: string;
+}
+
+export interface PrestadorAsignadoResumenDto {
+  id: number;
+  nombre: string;
 }
 
 export interface PacienteServicioAsignadoDto {
@@ -37,7 +55,14 @@ export interface PacienteServicioAsignadoDto {
   servicioId: number;
   servicioNombre: string;
   controlHorario: boolean;
+  modoRelevo: boolean;
+  reglasAsignacion: ReglasAsignacionServicioDto;
   visitaPendiente?: VisitaPendienteEnAsignacionDto;
+  coberturaActiva?: CoberturaActivaEnAsignacionDto | null;
+  prestadoresAsignados: PrestadorAsignadoResumenDto[];
+  /** HH:mm; ambos null = 24 h por día (solo relevo). */
+  coberturaDiariaInicio: string | null;
+  coberturaDiariaFin: string | null;
   modalidadCobro: ModalidadCobro;
   periodoControl: PeriodoControl;
   cantidadPermitida: number;

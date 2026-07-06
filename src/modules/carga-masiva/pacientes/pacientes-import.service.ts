@@ -2,6 +2,11 @@ import { AppError } from "../../../core/errors/AppError.js";
 import type { LocalidadesRepository } from "../../localidades/localidades.repository.js";
 import type { ObrasSocialesRepository } from "../../obras-sociales/obras-sociales.repository.js";
 import type { CreatePacienteData, PacientesRepository } from "../../pacientes/pacientes.repository.js";
+import {
+  PACIENTE_OBRA_SOCIAL_SIN_DATO_CODIGO,
+  PACIENTE_OBRA_SOCIAL_SIN_DATO_CODIGO_FALLBACK,
+  resolvePacienteCampos,
+} from "../../../shared/paciente/pacienteDefaults.js";
 import type { PacientesImportErrorDto, PacientesImportResultDto } from "./pacientes-import.dto.js";
 import { pacienteImportRowSchema } from "./pacientes-import.validation.js";
 import { PACIENTES_PLANTILLA_DATA_ROW_COUNT } from "./pacientes-plantilla.constants.js";
@@ -41,9 +46,10 @@ export class PacientesImportService {
       );
     }
 
-    const [obrasSociales, localidades] = await Promise.all([
+    const [obrasSociales, localidades, defaultObraSocialId] = await Promise.all([
       this.obrasSocialesRepository.findAllActivasOrderedByNombre(),
       this.localidadesRepository.findAllOrderedByNombre(),
+      this.resolveDefaultObraSocialId(),
     ]);
 
     const obraSocialByNombre = new Map(obrasSociales.map((obraSocial) => [obraSocial.nombre, obraSocial]));
@@ -61,9 +67,11 @@ export class PacientesImportService {
       }
 
       const data = validation.data;
-      const obraSocial = obraSocialByNombre.get(data.obraSocial);
+      const obraSocialNombre = data.obraSocial.trim();
+      const obraSocial =
+        obraSocialNombre.length > 0 ? obraSocialByNombre.get(obraSocialNombre) : undefined;
 
-      if (!obraSocial) {
+      if (obraSocialNombre.length > 0 && !obraSocial) {
         errores.push({
           fila: row.fila,
           campo: "obra_social",
@@ -72,7 +80,8 @@ export class PacientesImportService {
         continue;
       }
 
-      if (!localidadNombres.has(data.localidad)) {
+      const localidad = data.localidad.trim();
+      if (localidad.length > 0 && !localidadNombres.has(localidad)) {
         errores.push({
           fila: row.fila,
           campo: "localidad",
@@ -81,8 +90,7 @@ export class PacientesImportService {
         continue;
       }
 
-      validItems.push({
-        obraSocialId: obraSocial.id,
+      const campos = resolvePacienteCampos({
         nombre: data.nombre,
         apellido: data.apellido,
         numeroDocumento: data.numeroDocumento,
@@ -92,6 +100,12 @@ export class PacientesImportService {
         direccion: data.direccion,
         localidad: data.localidad,
         numeroAfiliado: data.numeroAfiliado,
+        uniqueDocumentKey: `fila-${row.fila}`,
+      });
+
+      validItems.push({
+        obraSocialId: obraSocial?.id ?? defaultObraSocialId,
+        ...campos,
       });
     }
 
@@ -105,5 +119,23 @@ export class PacientesImportService {
       creados,
       errores,
     };
+  }
+
+  private async resolveDefaultObraSocialId(): Promise<number> {
+    const obraSocialId =
+      (await this.obrasSocialesRepository.findActivaIdByCodigo(
+        PACIENTE_OBRA_SOCIAL_SIN_DATO_CODIGO,
+      )) ??
+      (await this.obrasSocialesRepository.findActivaIdByCodigo(
+        PACIENTE_OBRA_SOCIAL_SIN_DATO_CODIGO_FALLBACK,
+      ));
+
+    if (obraSocialId === null) {
+      throw AppError.badRequest(
+        "No hay una obra social por defecto configurada para importar pacientes sin obra social",
+      );
+    }
+
+    return obraSocialId;
   }
 }

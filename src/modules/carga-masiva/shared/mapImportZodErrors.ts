@@ -26,6 +26,20 @@ const ETIQUETAS_CAMPO: Record<string, string> = {
   direccion: "Dirección",
   localidad: "Localidad",
   numero_afiliado: "Número de afiliado",
+  descripcion: "Descripción",
+  estado: "Estado",
+  control_horario: "Control horario",
+  modo_relevo: "Modo relevo",
+  modalidad_cobro: "Modalidad de cobro",
+  tipo_jornada: "Tipo de jornada",
+  tipo_dia: "Tipo de día",
+  valor: "Valor",
+  codigo: "Código",
+  stock_actual: "Stock actual",
+  stock_minimo: "Stock mínimo",
+  unidad_medida: "Unidad de medida",
+  requiere_vencimiento: "Requiere vencimiento",
+  fecha_vencimiento: "Fecha de vencimiento",
 };
 
 function etiquetaCampo(campo: string): string {
