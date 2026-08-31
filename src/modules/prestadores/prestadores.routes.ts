@@ -51,6 +51,13 @@ prestadoresRouter.post(
   prestadoresController.create,
 );
 
+prestadoresRouter.patch(
+  "/:id",
+  authenticate,
+  authorizeRoles(ROLE.ADMIN),
+  prestadoresController.update,
+);
+
 prestadoresRouter.put(
   "/:id/servicios",
   authenticate,

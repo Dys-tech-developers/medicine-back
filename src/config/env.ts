@@ -19,6 +19,13 @@ const envSchema = z.object({
     .transform((v) => v === "true"),
   /** Secreto para endpoints internos de cron (Bearer). Mín. 32 caracteres en producción. */
   CRON_SECRET: z.string().min(32).optional(),
+  /** Configuración SMTP para el envío de correos (recuperación de contraseña, etc.). */
+  SMTP_HOST: z.string().min(1).optional(),
+  SMTP_PORT: z.coerce.number().int().positive().default(587),
+  SMTP_USER: z.string().min(1).optional(),
+  SMTP_PASS: z.string().min(1).optional(),
+  /** Remitente que verá el usuario. Ej: "DYS Medicine <no-reply@dysassistance.com>" */
+  MAIL_FROM: z.string().min(1).optional(),
 });
 
 type EnvConfig = z.infer<typeof envSchema>;

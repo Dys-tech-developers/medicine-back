@@ -425,10 +425,14 @@ export class VisitasRepository {
     });
   }
 
-  async finalizar(id: number, data: FinalizarVisitaData): Promise<VisitaDetail> {
+  /**
+   * Cierra la visita solo si sigue en estado `iniciada` (guarda atómica).
+   * Devuelve `null` si otro proceso ya la cerró (scheduler, cron o cierre manual concurrente).
+   */
+  async finalizar(id: number, data: FinalizarVisitaData): Promise<VisitaDetail | null> {
     return this.db.$transaction(async (tx) => {
-      await tx.visita.update({
-        where: { id },
+      const updated = await tx.visita.updateMany({
+        where: { id, estado: VISITA_ESTADO.INICIADA },
         data: {
           estado: VISITA_ESTADO.FINALIZADA,
           fechaFin: data.fechaFin,
@@ -439,15 +443,21 @@ export class VisitasRepository {
             ? { prestadorRelevoId: data.prestadorRelevoId }
             : {}),
           ...(data.observaciones !== null ? { observaciones: data.observaciones } : {}),
-          finanzas: {
-            create: {
-              modalidadCobro: data.finanzas.modalidadCobro,
-              tipoJornada: data.finanzas.tipoJornada,
-              tipoDia: data.finanzas.tipoDia,
-              valorUnitario: data.finanzas.valorUnitario,
-              valorAplicado: data.finanzas.valorAplicado,
-            },
-          },
+        },
+      });
+
+      if (updated.count === 0) {
+        return null;
+      }
+
+      await tx.visitaFinanzas.create({
+        data: {
+          visitaId: id,
+          modalidadCobro: data.finanzas.modalidadCobro,
+          tipoJornada: data.finanzas.tipoJornada,
+          tipoDia: data.finanzas.tipoDia,
+          valorUnitario: data.finanzas.valorUnitario,
+          valorAplicado: data.finanzas.valorAplicado,
         },
       });
 

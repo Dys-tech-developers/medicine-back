@@ -46,15 +46,12 @@ RUN apt-get update -qq && \
 # Copy built application
 COPY --from=build /app /app
 
-# Setup sqlite3 on a separate volume
-RUN mkdir -p /data
-VOLUME /data
-
 # Entrypoint prepares the database.
 ENTRYPOINT [ "/app/docker-entrypoint.js" ]
 
 # Start the server by default, this can be overwritten at runtime
 EXPOSE 8080
 ENV PORT=8080
-ENV DATABASE_URL="file:///data/sqlite.db"
+# Sobreescribir en runtime con una URL MariaDB/MySQL, p.ej.:
+# mysql://user:pass@host:3306/medicine
 CMD [ "npm", "run", "start" ]

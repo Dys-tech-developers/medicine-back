@@ -87,3 +87,24 @@ export const updatePrestadorServiciosSchema = z.object({
 });
 
 export type UpdatePrestadorServiciosInput = z.infer<typeof updatePrestadorServiciosSchema>;
+
+export const updatePrestadorSchema = z.object({
+  nombre: z.string().min(1).max(100).optional(),
+  email: z.string().email().max(150).optional(),
+  password: z
+    .string()
+    .min(10)
+    .max(72, "La contraseña no puede superar los 72 caracteres (límite de bcrypt)")
+    .optional(),
+  telefono: z.string().min(1).max(TELEFONO_MAX_LENGTH, TELEFONO_MAX_LENGTH_MESSAGE).optional(),
+  lugarResidencia: z.string().min(1).max(255).optional(),
+  documento: z.string().min(1).max(20).optional(),
+  matricula: z.string().min(1).max(50).optional(),
+  cuit: z.string().min(1).max(20).optional(),
+  cbu: z.string().min(1).max(150).optional(),
+  regimenIva: z.enum(REGIMENES_IVA).optional(),
+  estado: z.boolean().optional(),
+  servicioIds: prestadorServicioIdsField.optional(),
+});
+
+export type UpdatePrestadorInput = z.infer<typeof updatePrestadorSchema>;

@@ -155,11 +155,19 @@ export class AuthService {
       getResetCodeExpiresAt(),
     );
 
-    await sendPasswordResetEmail({
-      to: user.email,
-      nombre: user.nombre,
-      code,
-    });
+    try {
+      await sendPasswordResetEmail({
+        to: user.email,
+        nombre: user.nombre,
+        code,
+      });
+    } catch (error) {
+      console.error("[mail] Falló el envío del email de recuperación:", error);
+      await this.authRepository.clearPasswordResetCode(user.id);
+      throw AppError.internal(
+        "No pudimos enviar el correo de recuperación. Intentá de nuevo en unos minutos.",
+      );
+    }
 
     return { message: PASSWORD_RESET_GENERIC_MESSAGE };
   }

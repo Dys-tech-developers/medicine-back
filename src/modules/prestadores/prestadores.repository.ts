@@ -33,6 +33,21 @@ export interface CreatePrestadorData {
   servicioIds: number[];
 }
 
+export interface UpdatePrestadorData {
+  nombre?: string;
+  email?: string;
+  passwordHash?: string;
+  telefono?: string;
+  lugarResidencia?: string;
+  documento?: string;
+  matricula?: string;
+  cuit?: string;
+  cbu?: string;
+  regimenIva?: string;
+  estado?: boolean;
+  servicioIds?: number[];
+}
+
 export class PrestadoresRepository {
   constructor(private readonly db: PrismaClient) {}
 
@@ -106,26 +121,34 @@ export class PrestadoresRepository {
     });
   }
 
-  async syncServicios(prestadorId: number, servicioIds: number[]): Promise<PrestadorWithUser> {
+  private async syncServiciosInTx(
+    tx: Prisma.TransactionClient,
+    prestadorId: number,
+    servicioIds: number[],
+  ): Promise<void> {
     const uniqueIds = [...new Set(servicioIds)];
 
-    await this.db.$transaction(async (tx) => {
-      await tx.prestadorServicio.deleteMany({
-        where: {
-          prestadorId,
-          ...(uniqueIds.length > 0 ? { servicioId: { notIn: uniqueIds } } : {}),
-        },
-      });
+    await tx.prestadorServicio.deleteMany({
+      where: {
+        prestadorId,
+        ...(uniqueIds.length > 0 ? { servicioId: { notIn: uniqueIds } } : {}),
+      },
+    });
 
-      for (const servicioId of uniqueIds) {
-        await tx.prestadorServicio.upsert({
-          where: {
-            prestadorId_servicioId: { prestadorId, servicioId },
-          },
-          update: {},
-          create: { prestadorId, servicioId },
-        });
-      }
+    for (const servicioId of uniqueIds) {
+      await tx.prestadorServicio.upsert({
+        where: {
+          prestadorId_servicioId: { prestadorId, servicioId },
+        },
+        update: {},
+        create: { prestadorId, servicioId },
+      });
+    }
+  }
+
+  async syncServicios(prestadorId: number, servicioIds: number[]): Promise<PrestadorWithUser> {
+    await this.db.$transaction(async (tx) => {
+      await this.syncServiciosInTx(tx, prestadorId, servicioIds);
     });
 
     const prestador = await this.findById(prestadorId);
@@ -134,6 +157,65 @@ export class PrestadoresRepository {
     }
 
     return prestador;
+  }
+
+  async update(id: number, data: UpdatePrestadorData): Promise<PrestadorWithUser> {
+    return this.db.$transaction(async (tx) => {
+      const existing = await tx.prestador.findUnique({
+        where: { id },
+        select: { id: true, userId: true },
+      });
+
+      if (!existing) {
+        throw AppError.notFound("Prestador no encontrado");
+      }
+
+      const userData: Prisma.UserUpdateInput = {
+        ...(data.nombre !== undefined ? { nombre: data.nombre } : {}),
+        ...(data.email !== undefined ? { email: data.email } : {}),
+        ...(data.passwordHash !== undefined ? { passwordHash: data.passwordHash } : {}),
+      };
+
+      if (Object.keys(userData).length > 0) {
+        await tx.user.update({
+          where: { id: existing.userId },
+          data: userData,
+        });
+      }
+
+      const prestadorData: Prisma.PrestadorUpdateInput = {
+        ...(data.telefono !== undefined ? { telefono: data.telefono } : {}),
+        ...(data.lugarResidencia !== undefined ? { lugarResidencia: data.lugarResidencia } : {}),
+        ...(data.documento !== undefined ? { documento: data.documento } : {}),
+        ...(data.matricula !== undefined ? { matricula: data.matricula } : {}),
+        ...(data.cuit !== undefined ? { cuit: data.cuit } : {}),
+        ...(data.cbu !== undefined ? { cbu: data.cbu } : {}),
+        ...(data.regimenIva !== undefined ? { regimenIva: data.regimenIva } : {}),
+        ...(data.estado !== undefined ? { estado: data.estado } : {}),
+      };
+
+      if (Object.keys(prestadorData).length > 0) {
+        await tx.prestador.update({
+          where: { id },
+          data: prestadorData,
+        });
+      }
+
+      if (data.servicioIds !== undefined) {
+        await this.syncServiciosInTx(tx, id, data.servicioIds);
+      }
+
+      const detail = await tx.prestador.findUnique({
+        where: { id },
+        include: prestadorWithUserInclude,
+      });
+
+      if (!detail) {
+        throw AppError.notFound("Prestador no encontrado");
+      }
+
+      return detail;
+    });
   }
 
   async createWithUser(data: CreatePrestadorData): Promise<PrestadorWithUser> {

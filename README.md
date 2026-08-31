@@ -114,11 +114,11 @@ Los errores de **Zod** llegan como `code: "VALIDATION_ERROR"` con `details` en f
 
 ## Base de datos
 
-- El proyecto está preparado para desarrollo con **SQLite**: archivo local `prisma/dev.db` (sin servidor de base de datos).
-- `DATABASE_URL` debe usar el protocolo `file:` (ver `.env.example`).
+- El proyecto usa **MariaDB** (compatible con MySQL) vía Prisma (`provider = "mysql"`).
+- `DATABASE_URL` debe usar el protocolo `mysql:` (ver `.env.example`), por ejemplo:
+  `mysql://usuario:password@localhost:3306/medicine_dev`
 - Tras cambiar el `schema.prisma` o el proveedor, ejecutá `**npx prisma generate`** antes de correr la app o el seed.
-
-Para **producción** con PostgreSQL habrá que volver a `provider = "postgresql"`, ajustar la URL y regenerar migraciones según la estrategia del equipo.
+- Aplicá el esquema con `npx prisma migrate deploy` (o `prisma migrate dev` en local).
 
 ---
 
@@ -129,7 +129,7 @@ Para **producción** con PostgreSQL habrá que volver a `provider = "postgresql"
 | -------------------- | ------------------------------------------------- |
 | `NODE_ENV`           | `development`                                     |
 | `PORT`               | Puerto HTTP (por defecto `3000`).                 |
-| `DATABASE_URL`       | SQLite: `file:./dev.db` (archivo bajo `prisma/`). |
+| `DATABASE_URL`       | MariaDB/MySQL: `mysql://user:pass@host:3306/db`. |
 | `JWT_SECRET`         | Secreto de firma; **mínimo 32 caracteres**.       |
 | `JWT_EXPIRES_IN`     | Caducidad del access token (ej. `8h`).            |
 | `BCRYPT_SALT_ROUNDS` | Entre `10` y `15` (por defecto `12`).             |
@@ -186,6 +186,7 @@ Base URL: `http://localhost:<PORT>`
 | GET    | `/api/v1/prestadores/:id`                         | Bearer | ADMIN, OPERADOR            | Detalle con `servicios[]` habilitados (`prestador_servicios`).                               |
 | GET    | `/api/v1/prestadores/me`                          | Bearer | PRESTADOR                  | Perfil del prestador autenticado (mismo ítem que el listado). 404 sin fila en `prestadores`. |
 | POST   | `/api/v1/prestadores`                             | Bearer | ADMIN                      | Alta: `User` PRESTADOR + perfil; body opcional `servicioIds[]` (habilitación).               |
+| PATCH  | `/api/v1/prestadores/:id`                         | Bearer | ADMIN                      | Actualización parcial (datos, `password` y/o `servicioIds[]`).                               |
 | PUT    | `/api/v1/prestadores/:id/servicios`               | Bearer | ADMIN                      | Reemplaza servicios habilitados: `{ "servicioIds": number[] }` (puede ser `[]`).             |
 | GET    | `/api/v1/insumos`                                 | Bearer | ADMIN, OPERADOR, PRESTADOR | Listado paginado (`?bajoStock=true` opcional).                                               |
 | GET    | `/api/v1/insumos/:id`                             | Bearer | ADMIN, OPERADOR, PRESTADOR | Detalle de insumo.                                                                           |
@@ -406,6 +407,10 @@ Ejemplo: `GET /api/v1/prestadores?page=1&periodo=mensual`
 #### `POST /api/v1/prestadores`
 
 Body: campos de alta habituales + `servicioIds` opcional (`number[]`, sin duplicados). Crea vínculos en `prestador_servicios`. Servicios deben existir y estar activos.
+
+#### `PATCH /api/v1/prestadores/:id`
+
+Body parcial (todos opcionales): `nombre`, `email`, `password`, `telefono`, `lugarResidencia`, `documento`, `matricula`, `cuit`, `cbu`, `regimenIva`, `estado`, `servicioIds`. Si se envía `email`, no puede coincidir con otro usuario. Si se envía `servicioIds`, **reemplaza** la lista de habilitaciones (igual que el PUT).
 
 #### `PUT /api/v1/prestadores/:id/servicios`
 

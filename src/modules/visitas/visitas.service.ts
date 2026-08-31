@@ -19,6 +19,8 @@ import {
   estaVisitaVencida,
 } from "../../shared/visita/visitaLimite.js";
 import { visitaScheduler } from "../../shared/visita/visitaScheduler.js";
+import { sendVisitaFinalizadaEmail } from "../../shared/mail/sendVisitaFinalizadaEmail.js";
+import { sendVisitaCerradaAutomaticamenteEmail } from "../../shared/mail/sendVisitaCerradaAutomaticamenteEmail.js";
 import { assertCupoDisponibleParaVisita } from "../../shared/paciente-servicio/assertCupoDisponible.js";
 import { resolvePrestadoresAsignadosIds } from "../../shared/paciente-servicio/resolvePrestadoresAsignados.js";
 import {
@@ -266,7 +268,13 @@ export class VisitasService {
       cierreAutomatico: false,
     });
 
+    if (!visita) {
+      throw AppError.conflict("La visita ya fue cerrada");
+    }
+
     visitaScheduler.clear(id);
+
+    void sendVisitaFinalizadaEmail(visita);
 
     return mapVisitaToDto(visita);
   }
@@ -329,6 +337,8 @@ export class VisitasService {
       observacionesAnterior: tramoActivo.observaciones,
       finanzasAnterior,
     });
+
+    void sendVisitaFinalizadaEmail(anterior);
 
     return {
       huboRelevo: true,
@@ -444,6 +454,12 @@ export class VisitasService {
       cierrePorRelevo: false,
     });
 
+    if (!visita) {
+      throw AppError.conflict("El tramo ya fue cerrado");
+    }
+
+    void sendVisitaFinalizadaEmail(visita);
+
     return mapVisitaToDto(visita);
   }
 
@@ -523,6 +539,8 @@ export class VisitasService {
       observaciones: input.observaciones ?? null,
       finanzas,
     });
+
+    void sendVisitaFinalizadaEmail(visita);
 
     return mapVisitaToDto(visita);
   }
@@ -702,7 +720,7 @@ export class VisitasService {
       tiempoMinutos,
     );
 
-    await this.visitasRepository.finalizar(visita.id, {
+    const cerrada = await this.visitasRepository.finalizar(visita.id, {
       fechaFin,
       tiempoMinutos,
       observaciones: buildObservacionesCierreAutomatico(visita.observaciones),
@@ -711,6 +729,12 @@ export class VisitasService {
     });
 
     visitaScheduler.clear(visita.id);
+
+    if (!cerrada) {
+      return false;
+    }
+
+    void sendVisitaCerradaAutomaticamenteEmail(cerrada, cantidadHoras);
 
     return true;
   }

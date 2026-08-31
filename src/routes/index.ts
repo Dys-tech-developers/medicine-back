@@ -39,5 +39,5 @@ export function buildApiRouter(): Router {
 }
 
 export function registerHttpRoutes(app: Express): void {
-  app.use("/api/v1", buildApiRouter());
+  app.use("/medicine-back", buildApiRouter());
 }

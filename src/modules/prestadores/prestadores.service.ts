@@ -13,6 +13,7 @@ import type { PrestadoresRepository } from "./prestadores.repository.js";
 import type {
   CreatePrestadorInput,
   ListPrestadoresQuery,
+  UpdatePrestadorInput,
   UpdatePrestadorServiciosInput,
 } from "./prestadores.validation.js";
 import { listPrestadoresIncluyeEstadoCuenta } from "./prestadores.validation.js";
@@ -102,6 +103,45 @@ export class PrestadoresService {
       regimenIva: input.regimenIva,
       estado: input.estado ?? true,
       servicioIds: input.servicioIds,
+    });
+
+    return mapPrestadorToDto(prestador);
+  }
+
+  async update(id: number, input: UpdatePrestadorInput): Promise<PrestadorListItemDto> {
+    const existing = await this.prestadoresRepository.findById(id);
+    if (!existing) {
+      throw AppError.notFound("Prestador no encontrado");
+    }
+
+    if (input.email !== undefined) {
+      const email = input.email.toLowerCase();
+      const existingUser = await this.authRepository.findUserWithRolesByEmail(email);
+      if (existingUser && existingUser.id !== existing.userId) {
+        throw AppError.conflict("El email ya está registrado");
+      }
+    }
+
+    if (input.servicioIds !== undefined) {
+      await this.validateServicioIds(input.servicioIds);
+    }
+
+    const passwordHash =
+      input.password !== undefined ? await hashPassword(input.password) : undefined;
+
+    const prestador = await this.prestadoresRepository.update(id, {
+      ...(input.nombre !== undefined ? { nombre: input.nombre } : {}),
+      ...(input.email !== undefined ? { email: input.email.toLowerCase() } : {}),
+      ...(passwordHash !== undefined ? { passwordHash } : {}),
+      ...(input.telefono !== undefined ? { telefono: input.telefono } : {}),
+      ...(input.lugarResidencia !== undefined ? { lugarResidencia: input.lugarResidencia } : {}),
+      ...(input.documento !== undefined ? { documento: input.documento } : {}),
+      ...(input.matricula !== undefined ? { matricula: input.matricula } : {}),
+      ...(input.cuit !== undefined ? { cuit: input.cuit } : {}),
+      ...(input.cbu !== undefined ? { cbu: input.cbu } : {}),
+      ...(input.regimenIva !== undefined ? { regimenIva: input.regimenIva } : {}),
+      ...(input.estado !== undefined ? { estado: input.estado } : {}),
+      ...(input.servicioIds !== undefined ? { servicioIds: input.servicioIds } : {}),
     });
 
     return mapPrestadorToDto(prestador);

@@ -1,0 +1,9 @@
+### Register
+POST https://dysassistance.com/medicine-back/auth/register
+Content-Type: application/json
+
+{
+  "nombre": "Javier Gesualdi",
+  "email": "adminjavier@mail.com",
+  "password": "hola12345678"
+}

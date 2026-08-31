@@ -46,17 +46,20 @@ export class PacientesImportService {
       );
     }
 
-    const [obrasSociales, localidades, defaultObraSocialId] = await Promise.all([
+    const [obrasSociales, localidades] = await Promise.all([
       this.obrasSocialesRepository.findAllActivasOrderedByNombre(),
       this.localidadesRepository.findAllOrderedByNombre(),
-      this.resolveDefaultObraSocialId(),
     ]);
 
     const obraSocialByNombre = new Map(obrasSociales.map((obraSocial) => [obraSocial.nombre, obraSocial]));
     const localidadNombres = new Set(localidades.map((localidad) => localidad.nombre));
 
     const errores: PacientesImportErrorDto[] = [];
-    const validItems: CreatePacienteData[] = [];
+    const pendingItems: Array<{
+      fila: number;
+      obraSocialId: number | null;
+      campos: ReturnType<typeof resolvePacienteCampos>;
+    }> = [];
 
     for (const row of parsedRows) {
       const validation = pacienteImportRowSchema.safeParse(row.values);
@@ -103,11 +106,31 @@ export class PacientesImportService {
         uniqueDocumentKey: `fila-${row.fila}`,
       });
 
-      validItems.push({
-        obraSocialId: obraSocial?.id ?? defaultObraSocialId,
-        ...campos,
+      pendingItems.push({
+        fila: row.fila,
+        obraSocialId: obraSocial?.id ?? null,
+        campos,
       });
     }
+
+    const needsDefaultObraSocial = pendingItems.some((item) => item.obraSocialId === null);
+    const defaultObraSocialId = needsDefaultObraSocial
+      ? await this.resolveDefaultObraSocialId()
+      : null;
+
+    const validItems: CreatePacienteData[] = pendingItems.map((item) => {
+      const obraSocialId = item.obraSocialId ?? defaultObraSocialId;
+      if (obraSocialId === null) {
+        throw AppError.badRequest(
+          "No hay una obra social por defecto configurada para importar pacientes sin obra social",
+        );
+      }
+
+      return {
+        obraSocialId,
+        ...item.campos,
+      };
+    });
 
     const creados =
       validItems.length > 0

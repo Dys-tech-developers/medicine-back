@@ -8,6 +8,7 @@ import {
   createPrestadorSchema,
   listPrestadoresQuerySchema,
   prestadorIdParamSchema,
+  updatePrestadorSchema,
   updatePrestadorServiciosSchema,
 } from "./prestadores.validation.js";
 import type { PaginatedPrestadoresDto, PrestadorListItemDto } from "./prestadores.dto.js";
@@ -39,6 +40,13 @@ export class PrestadoresController {
     const input = parseWithSchema(createPrestadorSchema, req.body);
     const prestador = await this.prestadoresService.create(input);
     res.status(201).json({ success: true, data: prestador });
+  });
+
+  update = wrapAsync(async (req, res: Response<ApiSuccess<PrestadorListItemDto>>) => {
+    const { id } = parseWithSchema(prestadorIdParamSchema, req.params);
+    const input = parseWithSchema(updatePrestadorSchema, req.body);
+    const prestador = await this.prestadoresService.update(id, input);
+    res.status(200).json({ success: true, data: prestador });
   });
 
   updateServicios = wrapAsync(async (req, res: Response<ApiSuccess<PrestadorListItemDto>>) => {
